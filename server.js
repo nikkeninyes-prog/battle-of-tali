@@ -419,7 +419,7 @@ io.on('connection', (socket) => {
     const discardedCards = discIdx.map(i => p.hand[i]);
     p.hand = p.hand.filter((_, i) => !removeSet.has(i));
     p.graveyard.push(...discardedCards);
-    p.field.push({ uid: nextUid(), id: card.id, name: card.name, power: card.power, image: card.image });
+    p.field.push({ uid: nextUid(), id: card.id, name: card.name, power: card.power, image: card.image, cost: card.cost, gem: card.gem, text: card.text || '' });
     p.playedAvatar = true;
     addLog(room, `${p.name} ทิ้ง ${discIdx.length} ใบ (Gem ${gemTotal}) อัญเชิญ ${card.name} (Power ${card.power})`);
     broadcast(room);
