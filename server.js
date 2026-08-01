@@ -3,6 +3,8 @@ const http = require('http');
 const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 const { Server } = require('socket.io');
 
 const app = express();
@@ -10,8 +12,81 @@ const server = http.createServer(app);
 const io = new Server(server);
 
 const DATA_PATH = path.join(__dirname, 'data', 'cards.json');
+const DECKS_PATH = path.join(__dirname, 'data', 'decks.json');
+const ACCOUNTS_PATH = path.join(__dirname, 'data', 'accounts.json');
+if (!fs.existsSync(DECKS_PATH)) fs.writeFileSync(DECKS_PATH, '[]');
+if (!fs.existsSync(ACCOUNTS_PATH)) fs.writeFileSync(ACCOUNTS_PATH, '[]');
 
 app.use(express.json({ limit: '15mb' })); // raised so base64 card images can be saved via /api/cards
+
+// ---------- Accounts / login ----------
+// Change this via the SESSION_SECRET environment variable on Render (Environment tab) —
+// anyone who knows this secret could forge login tokens, so treat it like a password.
+const SESSION_SECRET = process.env.SESSION_SECRET || 'talingchan-dev-secret-change-me';
+const STARTING_COINS = 300; // "ตลิ่งคอยน์" starting balance — placeholder until a real earn/purchase flow exists
+
+function loadAccounts() { return JSON.parse(fs.readFileSync(ACCOUNTS_PATH, 'utf8')); }
+function saveAccounts(accs) { fs.writeFileSync(ACCOUNTS_PATH, JSON.stringify(accs, null, 2)); }
+function findAccount(username) { return loadAccounts().find(a => a.username.toLowerCase() === (username || '').toLowerCase()); }
+function makeToken(username) { return jwt.sign({ username }, SESSION_SECRET, { expiresIn: '90d' }); }
+function publicAccount(a) { return { username: a.username, coins: a.coins }; }
+
+function requireAuth(req, res, next) {
+  const auth = req.headers.authorization;
+  const token = auth && auth.startsWith('Bearer ') ? auth.slice(7) : null;
+  if (!token) return res.status(401).json({ error: 'ต้องเข้าสู่ระบบก่อน' });
+  try {
+    const payload = jwt.verify(token, SESSION_SECRET);
+    const account = findAccount(payload.username);
+    if (!account) return res.status(401).json({ error: 'ไม่พบบัญชีนี้แล้ว' });
+    req.account = account;
+    next();
+  } catch (e) {
+    return res.status(401).json({ error: 'เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่' });
+  }
+}
+
+app.post('/api/auth/register', async (req, res) => {
+  const { username, password } = req.body || {};
+  if (!username || !/^[a-zA-Z0-9_ก-๙]{3,20}$/.test(username)) {
+    return res.status(400).json({ error: 'ชื่อผู้ใช้ต้อง 3-20 ตัวอักษร (a-z, 0-9, _, ไทย)' });
+  }
+  if (!password || password.length < 4) return res.status(400).json({ error: 'รหัสผ่านอย่างน้อย 4 ตัวอักษร' });
+  const accounts = loadAccounts();
+  if (accounts.find(a => a.username.toLowerCase() === username.toLowerCase())) {
+    return res.status(400).json({ error: 'มีชื่อผู้ใช้นี้แล้ว' });
+  }
+  const passwordHash = await bcrypt.hash(password, 10);
+  const account = { username, passwordHash, coins: STARTING_COINS, createdAt: Date.now() };
+  accounts.push(account);
+  saveAccounts(accounts);
+  res.json({ ok: true, token: makeToken(username), ...publicAccount(account) });
+});
+
+app.post('/api/auth/login', async (req, res) => {
+  const { username, password } = req.body || {};
+  const account = findAccount(username);
+  if (!account) return res.status(401).json({ error: 'ไม่พบผู้ใช้นี้' });
+  const match = await bcrypt.compare(password || '', account.passwordHash);
+  if (!match) return res.status(401).json({ error: 'รหัสผ่านไม่ถูกต้อง' });
+  res.json({ ok: true, token: makeToken(account.username), ...publicAccount(account) });
+});
+
+app.get('/api/me', requireAuth, (req, res) => res.json(publicAccount(req.account)));
+
+// Manual coin top-up until a real earn/purchase flow (ads, payment, gacha shop) exists.
+// Protected by the same admin password as /admin.html.
+app.post('/api/admin/grant-coins', requireAdminAuth, (req, res) => {
+  const { username, amount } = req.body || {};
+  if (!username || !Number.isInteger(amount)) return res.status(400).json({ error: 'username, amount(int) required' });
+  const accounts = loadAccounts();
+  const acc = accounts.find(a => a.username.toLowerCase() === username.toLowerCase());
+  if (!acc) return res.status(404).json({ error: 'ไม่พบผู้ใช้นี้' });
+  acc.coins = Math.max(0, acc.coins + amount);
+  saveAccounts(accounts);
+  res.json({ ok: true, username: acc.username, coins: acc.coins });
+});
+app.get('/api/admin/accounts', requireAdminAuth, (req, res) => res.json(loadAccounts().map(publicAccount)));
 
 // ---------- Admin password gate ----------
 // Change this via the ADMIN_PASSWORD environment variable on Render (Environment tab).
@@ -64,6 +139,53 @@ app.post('/api/upload-image', upload.single('image'), (req, res) => {
   res.json({ ok: true, image: dataUri });
 });
 
+// ---------- Deck builder ----------
+// Decks are keyed by the logged-in account's username now that accounts exist.
+const DECK_SIZE = 50;
+const MAX_COPIES = 4;
+
+app.get('/api/cards-public', (req, res) => res.json(loadCards())); // no auth — anyone can browse the card pool to build a deck
+
+function loadDecks() { return JSON.parse(fs.readFileSync(DECKS_PATH, 'utf8')); }
+function saveDecks(decks) { fs.writeFileSync(DECKS_PATH, JSON.stringify(decks, null, 2)); }
+function normName(s) { return (s || '').trim().toLowerCase(); }
+
+app.get('/api/decks', requireAuth, (req, res) => {
+  res.json(loadDecks().filter(d => normName(d.player) === normName(req.account.username)));
+});
+
+app.post('/api/decks', requireAuth, (req, res) => {
+  const player = req.account.username;
+  const { deckName, cards } = req.body || {};
+  if (!deckName || !Array.isArray(cards)) return res.status(400).json({ error: 'deckName, cards required' });
+  const allCards = loadCards();
+  let total = 0;
+  for (const entry of cards) {
+    const def = allCards.find(c => c.id === entry.id);
+    if (!def) return res.status(400).json({ error: `การ์ด ${entry.id} ไม่มีอยู่จริง` });
+    if (!Number.isInteger(entry.count) || entry.count < 1 || entry.count > MAX_COPIES) {
+      return res.status(400).json({ error: `${def.name} ใส่ได้ 1-${MAX_COPIES} ใบ` });
+    }
+    total += entry.count;
+  }
+  if (total !== DECK_SIZE) return res.status(400).json({ error: `เด็คต้องมี ${DECK_SIZE} ใบพอดี (ตอนนี้ ${total})` });
+
+  const decks = loadDecks();
+  const idx = decks.findIndex(d => normName(d.player) === normName(player) && d.deckName === deckName);
+  const record = { player, deckName, cards, updatedAt: Date.now() };
+  if (idx >= 0) decks[idx] = record; else decks.push(record);
+  saveDecks(decks);
+  res.json({ ok: true });
+});
+
+app.delete('/api/decks', requireAuth, (req, res) => {
+  const { deckName } = req.body || {};
+  if (!deckName) return res.status(400).json({ error: 'deckName required' });
+  const decks = loadDecks().filter(d => !(normName(d.player) === normName(req.account.username) && d.deckName === deckName));
+  saveDecks(decks);
+  res.json({ ok: true });
+});
+
 const START_LIFE = 5;
 const MAX_FIELD = 4;
 
@@ -84,6 +206,27 @@ function buildDeck() {
     const copies = c.type === 'avatar' ? 3 : 2;
     for (let i = 0; i < copies; i++) deck.push({ ...c, uid: null });
   });
+  return shuffle(deck);
+}
+
+// Builds a 50-card deck from a chosen deck spec [{id,count}]. Returns null if invalid
+// (caller falls back to a random buildDeck() so a bad/missing deck never blocks play).
+function buildDeckFromSpec(spec) {
+  if (!Array.isArray(spec) || !spec.length) return null;
+  const base = loadCards();
+  let deck = [];
+  let total = 0;
+  for (const entry of spec) {
+    const def = base.find(c => c.id === entry.id);
+    if (!def || !Number.isInteger(entry.count) || entry.count < 1 || entry.count > MAX_COPIES) return null;
+    total += entry.count;
+    for (let i = 0; i < entry.count; i++) deck.push({ ...def, uid: null });
+  }
+  if (total !== DECK_SIZE) return null;
+  return shuffle(deck);
+}
+
+function shuffle(deck) {
   for (let i = deck.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [deck[i], deck[j]] = [deck[j], deck[i]];
@@ -94,10 +237,10 @@ function buildDeck() {
 let uidCounter = 1;
 function nextUid() { return 'u' + (uidCounter++); }
 
-function newPlayer(socketId, name) {
+function newPlayer(socketId, name, deckSpec) {
   return {
     socketId, name,
-    deck: buildDeck(),
+    deck: buildDeckFromSpec(deckSpec) || buildDeck(),
     hand: [],
     field: [],
     graveyard: [],
@@ -210,10 +353,23 @@ function applyMagic(room, casterIdx, targetUid, card) {
   caster.graveyard.push(card);
 }
 
+io.use((socket, next) => {
+  const token = socket.handshake.auth && socket.handshake.auth.token;
+  if (!token) return next(new Error('unauthorized'));
+  try {
+    const payload = jwt.verify(token, SESSION_SECRET);
+    if (!findAccount(payload.username)) return next(new Error('unauthorized'));
+    socket.data.username = payload.username;
+    next();
+  } catch (e) {
+    next(new Error('unauthorized'));
+  }
+});
+
 io.on('connection', (socket) => {
-  socket.on('createRoom', ({ name }) => {
+  socket.on('createRoom', ({ deck }) => {
     const code = makeRoomCode();
-    const room = { code, players: [newPlayer(socket.id, name || 'ผู้เล่น 1')], started: false, turn: 0, phase: 'main', firstTurn: true, log: [], winner: undefined };
+    const room = { code, players: [newPlayer(socket.id, socket.data.username, deck)], started: false, turn: 0, phase: 'main', firstTurn: true, log: [], winner: undefined };
     rooms[code] = room;
     socket.join(code);
     socket.data.room = code;
@@ -221,11 +377,11 @@ io.on('connection', (socket) => {
     broadcast(room);
   });
 
-  socket.on('joinRoom', ({ code, name }) => {
+  socket.on('joinRoom', ({ code, deck }) => {
     const room = rooms[(code || '').toUpperCase()];
     if (!room) return io.to(socket.id).emit('errorMsg', 'ไม่พบห้องนี้');
     if (room.players.length >= 2) return io.to(socket.id).emit('errorMsg', 'ห้องเต็มแล้ว');
-    room.players.push(newPlayer(socket.id, name || 'ผู้เล่น 2'));
+    room.players.push(newPlayer(socket.id, socket.data.username, deck));
     socket.join(room.code);
     socket.data.room = room.code;
     io.to(socket.id).emit('joined', { code: room.code });
