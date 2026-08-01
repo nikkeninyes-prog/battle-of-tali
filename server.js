@@ -10,26 +10,41 @@ const server = http.createServer(app);
 const io = new Server(server);
 
 const DATA_PATH = path.join(__dirname, 'data', 'cards.json');
-const UPLOADS_DIR = path.join(__dirname, 'uploads');
-if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 
-app.use(express.json());
-app.use('/uploads', express.static(UPLOADS_DIR));
+app.use(express.json({ limit: '15mb' })); // raised so base64 card images can be saved via /api/cards
+
+// ---------- Admin password gate ----------
+// Change this via the ADMIN_PASSWORD environment variable on Render (Environment tab).
+// Username is always "admin". Default password below is only for local testing.
+const ADMIN_USER = 'admin';
+const ADMIN_PASS = process.env.ADMIN_PASSWORD || 'talingchan2026';
+
+function requireAdminAuth(req, res, next) {
+  const auth = req.headers.authorization;
+  if (auth && auth.startsWith('Basic ')) {
+    const [user, pass] = Buffer.from(auth.slice(6), 'base64').toString().split(':');
+    if (user === ADMIN_USER && pass === ADMIN_PASS) return next();
+  }
+  res.set('WWW-Authenticate', 'Basic realm="Battle of Talingchan Admin"');
+  return res.status(401).send('ต้องใส่รหัสผ่านก่อนเข้าหน้า Admin');
+}
+
+// must be registered BEFORE express.static so it actually gates the file
+app.use('/admin.html', requireAdminAuth);
+app.use('/api/cards', requireAdminAuth);
+app.use('/api/upload-image', requireAdminAuth);
+
 app.use(express.static(path.join(__dirname, 'public')));
 
+// ---------- Card data helpers ----------
 function loadCards() { return JSON.parse(fs.readFileSync(DATA_PATH, 'utf8')); }
 function saveCards(cards) { fs.writeFileSync(DATA_PATH, JSON.stringify(cards, null, 2)); }
 
-const upload = multer({
-  storage: multer.diskStorage({
-    destination: (req, file, cb) => cb(null, UPLOADS_DIR),
-    filename: (req, file, cb) => {
-      const ext = path.extname(file.originalname);
-      const safeId = (req.body.cardId || 'card').replace(/[^a-zA-Z0-9_-]/g, '');
-      cb(null, `${safeId}_${Date.now()}${ext}`);
-    }
-  })
-});
+// ---------- Admin API (password-protected above) ----------
+// Images are stored as base64 data URIs directly inside cards.json — no disk
+// uploads folder needed, so nothing is lost when Render redeploys/restarts
+// (Render's filesystem is not persistent between deploys on the free tier).
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 3 * 1024 * 1024 } });
 
 app.get('/api/cards', (req, res) => res.json(loadCards()));
 app.post('/api/cards', (req, res) => {
@@ -43,9 +58,10 @@ app.post('/api/upload-image', upload.single('image'), (req, res) => {
   const cards = loadCards();
   const card = cards.find(c => c.id === cardId);
   if (!card) return res.status(404).json({ error: 'card not found' });
-  card.image = `/uploads/${req.file.filename}`;
+  const dataUri = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
+  card.image = dataUri;
   saveCards(cards);
-  res.json({ ok: true, image: card.image });
+  res.json({ ok: true, image: dataUri });
 });
 
 const START_LIFE = 5;
