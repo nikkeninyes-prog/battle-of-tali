@@ -1,19 +1,186 @@
 [
-  { "id": "av01", "name": "นักรบตลิ่งชัน", "type": "avatar", "cost": 2, "gem": 1, "power": 4, "text": "นักสู้พื้นบ้านผู้ปกป้องหมู่บ้าน", "image": null },
-  { "id": "av02", "name": "จอมเวทแม่น้ำ", "type": "avatar", "cost": 2, "gem": 1, "power": 3, "text": "ใช้พลังสายน้ำโจมตีศัตรู", "image": null },
-  { "id": "av03", "name": "มังกรคลองบางกอกน้อย", "type": "avatar", "cost": 5, "gem": 1, "power": 8, "text": "อสูรกายแห่งคลอง พลังทำลายล้างสูง", "image": null },
-  { "id": "av04", "name": "พรานป่าตลิ่งชัน", "type": "avatar", "cost": 1, "gem": 1, "power": 3, "text": "โจมตีไว ราคาถูก", "image": null },
-  { "id": "av05", "name": "ยักษ์วัดเก่า", "type": "avatar", "cost": 4, "gem": 1, "power": 6, "text": "ผู้พิทักษ์วัดโบราณ พลังสูง", "image": null },
-  { "id": "av06", "name": "นางฟ้าสวนผลไม้", "type": "avatar", "cost": 1, "gem": 2, "power": 2, "text": "พลังต่ำ แต่ให้ Gem เยอะเวลาทิ้ง", "image": null },
-  { "id": "av07", "name": "เจ้าแม่ตลาดน้ำ", "type": "avatar", "cost": 3, "gem": 1, "power": 5, "text": "ควบคุมเส้นทางการค้าทางน้ำ", "image": null },
-  { "id": "av08", "name": "อสูรโคลนตม", "type": "avatar", "cost": 3, "gem": 0, "power": 7, "text": "โจมตีแรงมาก แต่ทิ้งแล้วไม่ได้ Gem", "image": null },
-
-  { "id": "mg01", "name": "สายฝนตลิ่งชัน", "type": "magic", "subtype": "land", "gem": 1, "effect": { "kind": "field_buff", "value": 1 }, "text": "Avatar ทุกใบในสนาม (ทั้งสองฝ่าย) ได้ Power +1", "image": null },
-  { "id": "mg02", "name": "หมอกยามเช้า", "type": "magic", "subtype": "land", "gem": 1, "effect": { "kind": "field_buff", "value": -1 }, "text": "Avatar ทุกใบในสนาม (ทั้งสองฝ่าย) Power -1 (ไม่ต่ำกว่า 0)", "image": null },
-  { "id": "mg03", "name": "มีดสั้นชาวสวน", "type": "magic", "subtype": "weapon", "gem": 1, "effect": { "kind": "buff_power", "value": 2 }, "text": "Avatar เป้าหมายของคุณได้ Power +2 ถาวร", "image": null },
-  { "id": "mg04", "name": "ผ้าคาดพลัง", "type": "magic", "subtype": "weapon", "gem": 1, "effect": { "kind": "buff_power", "value": 3 }, "text": "Avatar เป้าหมายของคุณได้ Power +3 ถาวร", "image": null },
-  { "id": "mg05", "name": "ไฟป่าตลิ่งชัน", "type": "magic", "subtype": "normal", "gem": 2, "effect": { "kind": "damage", "value": 3 }, "text": "ลด Power ของ Avatar ศัตรูที่เลือกลง 3 (ถ้าเหลือ 0 ถูกทำลาย)", "image": null },
-  { "id": "mg06", "name": "น้ำใจชาวบ้าน", "type": "magic", "subtype": "normal", "gem": 1, "effect": { "kind": "heal_life", "value": 1 }, "text": "คืน Life Card ให้ตัวเอง 1 ใบ (ไม่เกินค่าเริ่มต้น 5)", "image": null },
-  { "id": "mg07", "name": "โต้กลับสายฟ้า", "type": "magic", "subtype": "counter", "gem": 1, "effect": { "kind": "counter_negate", "value": 1 }, "text": "ใช้ตอนถูกโจมตี ยกเลิกการโจมตีครั้งนั้น", "image": null },
-  { "id": "mg08", "name": "กำแพงมนตร์", "type": "magic", "subtype": "counter", "gem": 1, "effect": { "kind": "counter_reduce", "value": 2 }, "text": "ใช้ตอนถูกโจมตี ลด Power การโจมตีครั้งนั้นลง 2 ก่อนคำนวณ", "image": null }
+  {
+    "id": "av01",
+    "name": "นักรบตลิ่งชัน",
+    "type": "avatar",
+    "cost": 2,
+    "gem": 1,
+    "power": 4,
+    "text": "นักสู้พื้นบ้านผู้ปกป้องหมู่บ้าน",
+    "image": null
+  },
+  {
+    "id": "av02",
+    "name": "จอมเวทแม่น้ำ",
+    "type": "avatar",
+    "cost": 2,
+    "gem": 1,
+    "power": 3,
+    "text": "ใช้พลังสายน้ำโจมตีศัตรู",
+    "image": null
+  },
+  {
+    "id": "av03",
+    "name": "มังกรคลองบางกอกน้อย",
+    "type": "avatar",
+    "cost": 5,
+    "gem": 1,
+    "power": 8,
+    "text": "อสูรกายแห่งคลอง พลังทำลายล้างสูง",
+    "image": null
+  },
+  {
+    "id": "av04",
+    "name": "พรานป่าตลิ่งชัน",
+    "type": "avatar",
+    "cost": 1,
+    "gem": 1,
+    "power": 3,
+    "text": "โจมตีไว ราคาถูก",
+    "image": null
+  },
+  {
+    "id": "av05",
+    "name": "ยักษ์วัดเก่า",
+    "type": "avatar",
+    "cost": 4,
+    "gem": 1,
+    "power": 6,
+    "text": "ผู้พิทักษ์วัดโบราณ พลังสูง",
+    "image": null
+  },
+  {
+    "id": "av06",
+    "name": "นางฟ้าสวนผลไม้",
+    "type": "avatar",
+    "cost": 1,
+    "gem": 2,
+    "power": 2,
+    "text": "พลังต่ำ แต่ให้ Gem เยอะเวลาทิ้ง",
+    "image": null
+  },
+  {
+    "id": "av07",
+    "name": "เจ้าแม่ตลาดน้ำ",
+    "type": "avatar",
+    "cost": 3,
+    "gem": 1,
+    "power": 5,
+    "text": "ควบคุมเส้นทางการค้าทางน้ำ",
+    "image": null
+  },
+  {
+    "id": "av08",
+    "name": "อสูรโคลนตม",
+    "type": "avatar",
+    "cost": 3,
+    "gem": 0,
+    "power": 7,
+    "text": "โจมตีแรงมาก แต่ทิ้งแล้วไม่ได้ Gem",
+    "image": null
+  },
+  {
+    "id": "mg01",
+    "name": "สายฝนตลิ่งชัน",
+    "type": "magic",
+    "subtype": "land",
+    "gem": 1,
+    "effect": {
+      "kind": "field_buff",
+      "value": 1
+    },
+    "text": "Avatar ทุกใบในสนาม (ทั้งสองฝ่าย) ได้ Power +1",
+    "image": null
+  },
+  {
+    "id": "mg02",
+    "name": "หมอกยามเช้า",
+    "type": "magic",
+    "subtype": "land",
+    "gem": 1,
+    "effect": {
+      "kind": "field_buff",
+      "value": -1
+    },
+    "text": "Avatar ทุกใบในสนาม (ทั้งสองฝ่าย) Power -1 (ไม่ต่ำกว่า 0)",
+    "image": null
+  },
+  {
+    "id": "mg03",
+    "name": "มีดสั้นชาวสวน",
+    "type": "magic",
+    "subtype": "weapon",
+    "gem": 1,
+    "effect": {
+      "kind": "buff_power",
+      "value": 2
+    },
+    "text": "Avatar เป้าหมายของคุณได้ Power +2 ถาวร",
+    "image": null
+  },
+  {
+    "id": "mg04",
+    "name": "ผ้าคาดพลัง",
+    "type": "magic",
+    "subtype": "weapon",
+    "gem": 1,
+    "effect": {
+      "kind": "buff_power",
+      "value": 3
+    },
+    "text": "Avatar เป้าหมายของคุณได้ Power +3 ถาวร",
+    "image": null
+  },
+  {
+    "id": "mg05",
+    "name": "ไฟป่าตลิ่งชัน",
+    "type": "magic",
+    "subtype": "normal",
+    "gem": 2,
+    "effect": {
+      "kind": "damage",
+      "value": 3
+    },
+    "text": "ลด Power ของ Avatar ศัตรูที่เลือกลง 3 (ถ้าเหลือ 0 ถูกทำลาย)",
+    "image": null
+  },
+  {
+    "id": "mg06",
+    "name": "น้ำใจชาวบ้าน",
+    "type": "magic",
+    "subtype": "normal",
+    "gem": 1,
+    "effect": {
+      "kind": "heal_life",
+      "value": 1
+    },
+    "text": "คืน Life Card ให้ตัวเอง 1 ใบ (ไม่เกินค่าเริ่มต้น 5)",
+    "image": null
+  },
+  {
+    "id": "mg07",
+    "name": "โต้กลับสายฟ้า",
+    "type": "magic",
+    "subtype": "counter",
+    "gem": 1,
+    "effect": {
+      "kind": "counter_negate",
+      "value": 1
+    },
+    "text": "ใช้ตอนถูกโจมตี ยกเลิกการโจมตีครั้งนั้น",
+    "image": null
+  },
+  {
+    "id": "mg08",
+    "name": "กำแพงมนตร์",
+    "type": "magic",
+    "subtype": "counter",
+    "gem": 1,
+    "effect": {
+      "kind": "counter_reduce",
+      "value": 2
+    },
+    "text": "ใช้ตอนถูกโจมตี ลด Power การโจมตีครั้งนั้นลง 2 ก่อนคำนวณ",
+    "image": null
+  }
 ]
