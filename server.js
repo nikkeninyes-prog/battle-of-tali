@@ -129,7 +129,8 @@ function publicState(room, forSocketId) {
     hand: p.socketId === forSocketId ? p.hand : [],
     field: p.field, graveyard: p.graveyard,
     playedAvatar: p.playedAvatar, playedMagic: p.playedMagic,
-    hasCounter: !!p.counterPending
+    hasCounter: !!p.counterPending,
+    counterName: p.counterPending ? p.counterPending.name : null
   }));
   return {
     code: room.code, started: room.started, turn: room.turn, phase: room.phase,
@@ -176,7 +177,12 @@ function applyMagic(room, casterIdx, targetUid, card) {
     }
     case 'buff_power': {
       const target = caster.field.find(f => f.uid === targetUid);
-      if (target) { target.power += eff.value; addLog(room, `${caster.name} ใช้ ${card.name} กับ ${target.name}: Power +${eff.value}`); }
+      if (target) {
+        target.power += eff.value;
+        if (!target.attachments) target.attachments = [];
+        target.attachments.push(card.name);
+        addLog(room, `${caster.name} ใช้ ${card.name} กับ ${target.name}: Power +${eff.value}`);
+      }
       break;
     }
     case 'damage': {
