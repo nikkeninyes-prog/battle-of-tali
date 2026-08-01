@@ -40,6 +40,48 @@
 
 <div class="grid" id="grid"></div>
 
+<h1 style="margin-top:28px;">บัญชีผู้เล่น &amp; ตลิ่งคอยน์</h1>
+<div class="sub">เติมเงินให้เพื่อนด้วยมือไปก่อน จนกว่าจะมีระบบซื้อ/หาเงินจริง (โฆษณา, กาชา ฯลฯ)</div>
+<div style="background:var(--panel);border:1px solid #2A2015;border-radius:6px;padding:12px;max-width:480px;">
+  <table style="width:100%;border-collapse:collapse;font-size:13px;" id="acctTable"></table>
+  <div style="display:flex;gap:6px;margin-top:12px;">
+    <input type="text" id="grantUser" placeholder="ชื่อผู้ใช้" style="flex:2;">
+    <input type="number" id="grantAmt" placeholder="+จำนวน" style="flex:1;">
+    <button style="width:auto;margin-top:0;padding:7px 14px;" onclick="grantCoins()">เติม</button>
+  </div>
+</div>
+
+<script>
+async function loadAccounts() {
+  const res = await fetch('/api/admin/accounts');
+  const accounts = await res.json();
+  const table = document.getElementById('acctTable');
+  table.innerHTML = accounts.map(a => `
+    <tr style="border-bottom:1px solid #2A2015;">
+      <td style="padding:6px 4px;">${escHtml(a.username)}</td>
+      <td style="padding:6px 4px;text-align:right;font-family:'IBM Plex Mono',monospace;color:var(--gold);">🪙 ${a.coins}</td>
+    </tr>`).join('') || '<tr><td style="padding:8px;color:var(--muted);">ยังไม่มีผู้ใช้สมัครเลย</td></tr>';
+}
+
+async function grantCoins() {
+  const username = document.getElementById('grantUser').value.trim();
+  const amount = parseInt(document.getElementById('grantAmt').value, 10);
+  if (!username || !Number.isInteger(amount)) return setStatus('กรอกชื่อผู้ใช้และจำนวนให้ครบ');
+  const res = await fetch('/api/admin/grant-coins', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ username, amount })
+  });
+  const data = await res.json();
+  if (!res.ok) return setStatus(data.error || 'เติมไม่สำเร็จ');
+  setStatus(`เติมให้ ${data.username} แล้ว → ${data.coins} coins ✓`);
+  document.getElementById('grantAmt').value = '';
+  loadAccounts();
+}
+
+loadAccounts();
+</script>
+
+
 <script>
 let cards = [];
 

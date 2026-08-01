@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+Thai:wght@500;700;900&family=Noto+Sans+Thai:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
 <script src="/socket.io/socket.io.js"></script>
+<script src="/auth.js"></script>
 <style>
   :root{
     --bg:#120D0A; --panel:#1D150F; --panel-alt:#261B12;
@@ -130,19 +131,34 @@
 
 <div id="lobby">
   <div class="brand">ศึกตลิ่งชัน<small>BATTLE OF TALINGCHAN — PRIVATE MATCH</small></div>
-  <div class="card-frame">
-    <input type="text" id="nameInput" placeholder="ชื่อผู้เล่น">
-    <button class="btn primary" id="createBtn">สร้างห้องใหม่</button>
-    <div class="divider">— หรือ —</div>
-    <input type="text" id="codeInput" placeholder="รหัสห้อง" style="text-transform:uppercase">
-    <button class="btn" id="joinBtn">เข้าร่วมห้อง</button>
-    <div id="err"></div>
-  </div>
-  <div id="waitBox" class="card-frame" style="display:none;">
-    <div style="font-size:12px;color:var(--muted);">รหัสห้องของคุณ — ส่งให้เพื่อน</div>
-    <div class="roomcode" id="codeShow">-----</div>
-    <div id="waitStatus" style="font-size:13px;color:var(--muted);">รอผู้เล่นอีกคน...</div>
-    <button class="btn primary" id="startBtn" style="display:none;">เริ่มเกม</button>
+
+  <div id="authGateContainer" class="card-frame"></div>
+
+  <div id="mainLobby" style="display:none;width:100%;max-width:360px;">
+    <div class="card-frame" style="margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;padding:14px 18px;">
+      <div>
+        <div style="font-weight:600;" id="acctName">-</div>
+        <div class="mono" style="font-size:11px;color:var(--gold);" id="acctCoins">🪙 -</div>
+      </div>
+      <button class="btn crimson" style="width:auto;padding:8px 14px;font-size:12px;" onclick="logout()">ออกจากระบบ</button>
+    </div>
+    <div class="card-frame">
+      <select id="deckSelect" style="width:100%;background:#0F0B08;border:1px solid var(--gold-dim);color:var(--text);padding:11px 12px;border-radius:3px;font-size:13px;margin-bottom:12px;">
+        <option value="">🎲 สุ่มเด็คอัตโนมัติ</option>
+      </select>
+      <a href="/deckbuilder.html" style="display:block;text-align:center;font-size:11px;color:var(--gem);margin:-4px 0 12px;text-decoration:none;">🃏 จัดเด็คของฉัน →</a>
+      <button class="btn primary" id="createBtn">สร้างห้องใหม่</button>
+      <div class="divider">— หรือ —</div>
+      <input type="text" id="codeInput" placeholder="รหัสห้อง" style="text-transform:uppercase">
+      <button class="btn" id="joinBtn">เข้าร่วมห้อง</button>
+      <div id="err"></div>
+    </div>
+    <div id="waitBox" class="card-frame" style="display:none;">
+      <div style="font-size:12px;color:var(--muted);">รหัสห้องของคุณ — ส่งให้เพื่อน</div>
+      <div class="roomcode" id="codeShow">-----</div>
+      <div id="waitStatus" style="font-size:13px;color:var(--muted);">รอผู้เล่นอีกคน...</div>
+      <button class="btn primary" id="startBtn" style="display:none;">เริ่มเกม</button>
+    </div>
   </div>
 </div>
 
@@ -212,39 +228,80 @@
 </div>
 
 <script>
-const socket = io();
+let socket = null;
 let myIdx = -1;
 let selected = null; // {kind:'attack'|'magic-target'|'magic-target-own', uid|handIndex}
 let lastState = null;
 let summonMode = null; // {handIndex, cost, picked:Set}
+let myDecks = [];
 
 const $ = id => document.getElementById(id);
 
-$('createBtn').onclick = () => socket.emit('createRoom', { name: $('nameInput').value.trim() || 'ผู้เล่น 1' });
-$('joinBtn').onclick = () => {
-  const code = $('codeInput').value.trim().toUpperCase();
-  if (!code) return;
-  socket.emit('joinRoom', { code, name: $('nameInput').value.trim() || 'ผู้เล่น 2' });
-};
-$('startBtn').onclick = () => socket.emit('startGame');
-$('endTurnBtn').onclick = () => { selected = null; renderSelection(); socket.emit('endTurn'); };
-$('cancelBtn').onclick = () => { selected = null; renderSelection(); };
+(async () => {
+  const user = await checkAuth();
+  if (user) startApp(user);
+  else renderAuthGate($('authGateContainer'), startApp);
+})();
 
-socket.on('errorMsg', msg => { $('err').textContent = msg; });
-socket.on('joined', ({ code }) => { $('err').textContent = ''; $('waitBox').style.display = 'block'; $('codeShow').textContent = code; });
+function startApp(user) {
+  $('authGateContainer').style.display = 'none';
+  $('mainLobby').style.display = 'block';
+  $('acctName').textContent = '👤 ' + user.username;
+  $('acctCoins').textContent = '🪙 ' + user.coins;
 
-socket.on('state', (state) => {
-  lastState = state;
-  myIdx = state.you;
-  if (!state.started) {
-    $('waitStatus').textContent = state.players.length < 2 ? 'รอผู้เล่นอีกคน...' : 'พร้อมแล้ว!';
-    if (state.players.length === 2 && myIdx === 0) $('startBtn').style.display = 'block';
-    return;
-  }
-  $('lobby').style.display = 'none';
-  $('game').style.display = 'flex';
-  render(state);
-});
+  socket = io({ auth: { token: authToken() } });
+
+  $('createBtn').onclick = () => socket.emit('createRoom', { deck: getSelectedDeckCards() });
+  $('joinBtn').onclick = () => {
+    const code = $('codeInput').value.trim().toUpperCase();
+    if (!code) return;
+    socket.emit('joinRoom', { code, deck: getSelectedDeckCards() });
+  };
+  $('startBtn').onclick = () => socket.emit('startGame');
+  $('endTurnBtn').onclick = () => { selected = null; renderSelection(); socket.emit('endTurn'); };
+  $('cancelBtn').onclick = () => { selected = null; renderSelection(); };
+
+  socket.on('connect_error', (err) => {
+    if (err.message === 'unauthorized') { $('err').textContent = 'เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่'; setTimeout(logout, 1500); }
+  });
+  socket.on('errorMsg', msg => { $('err').textContent = msg; });
+  socket.on('joined', ({ code }) => { $('err').textContent = ''; $('waitBox').style.display = 'block'; $('codeShow').textContent = code; });
+  socket.on('state', (state) => {
+    lastState = state;
+    myIdx = state.you;
+    if (!state.started) {
+      $('waitStatus').textContent = state.players.length < 2 ? 'รอผู้เล่นอีกคน...' : 'พร้อมแล้ว!';
+      if (state.players.length === 2 && myIdx === 0) $('startBtn').style.display = 'block';
+      return;
+    }
+    $('lobby').style.display = 'none';
+    $('game').style.display = 'flex';
+    render(state);
+  });
+
+  refreshDeckOptions();
+}
+
+function getSelectedDeckCards() {
+  const name = $('deckSelect').value;
+  const d = myDecks.find(x => x.deckName === name);
+  return d ? d.cards : undefined; // undefined -> server falls back to random deck
+}
+async function refreshDeckOptions() {
+  const sel = $('deckSelect');
+  sel.innerHTML = '<option value="">🎲 สุ่มเด็คอัตโนมัติ</option>';
+  try {
+    const res = await authFetch('/api/decks');
+    myDecks = await res.json();
+    myDecks.forEach(d => {
+      const opt = document.createElement('option');
+      opt.value = d.deckName;
+      opt.textContent = `🃏 ${d.deckName}`;
+      sel.appendChild(opt);
+    });
+  } catch (e) { myDecks = []; }
+}
+
 
 function render(state) {
   $('roomLabel').textContent = state.code;

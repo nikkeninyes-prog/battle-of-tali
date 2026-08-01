@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>จัดเด็ค — Battle of Talingchan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+Thai:wght@600;800&family=Noto+Sans+Thai:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<script src="/auth.js"></script>
+<style>
+  :root{
+    --bg:#120D0A; --panel:#1D150F; --panel-alt:#261B12;
+    --gold:#C9A227; --gold-dim:#8A7226; --crimson:#A6291B; --crimson-bright:#D63A28;
+    --text:#EDE6D6; --muted:#9C8F76; --gem:#3E7CB1; --ok:#5C8A3A;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:radial-gradient(1200px 600px at 50% -10%, #2A1D12 0%, var(--bg) 60%);color:var(--text);font-family:'Noto Sans Thai',sans-serif;padding-bottom:90px;}
+  h1,h2,h3{font-family:'Noto Serif Thai',serif;}
+  .mono{font-family:'IBM Plex Mono',monospace;}
+  button{font-family:inherit;cursor:pointer;}
+  input,select{font-family:inherit;}
+
+  header{position:sticky;top:0;z-index:20;background:var(--bg);border-bottom:1px solid #2A2015;padding:10px 12px;}
+  header h1{color:var(--gold);font-size:18px;margin:0 0 8px;}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+  .row input,.row select{background:#0F0B08;border:1px solid var(--gold-dim);color:var(--text);padding:8px 10px;border-radius:3px;font-size:13px;flex:1;min-width:110px;}
+  .btn{padding:8px 14px;border-radius:3px;border:1px solid var(--gold);background:transparent;color:var(--gold);font-weight:600;font-size:13px;white-space:nowrap;}
+  .btn.primary{background:var(--gold);color:#1A1208;}
+  .btn.crimson{border-color:var(--crimson);color:var(--crimson-bright);}
+  .btn:disabled{opacity:.35;pointer-events:none;}
+  .counter{font-family:'IBM Plex Mono',monospace;font-weight:700;font-size:16px;padding:2px 10px;border-radius:4px;border:1px solid var(--muted);}
+  .counter.ok{color:var(--ok);border-color:var(--ok);}
+  .counter.bad{color:var(--crimson-bright);border-color:var(--crimson);}
+  #msg{font-size:12px;color:var(--crimson-bright);min-height:16px;padding:0 12px;}
+
+  .tabs{display:flex;gap:6px;padding:8px 12px 0;}
+  .tab{padding:6px 12px;font-size:12px;border-radius:3px 3px 0 0;border:1px solid #2A2015;border-bottom:none;background:var(--panel);color:var(--muted);cursor:pointer;}
+  .tab.active{color:var(--gold);background:var(--panel-alt);}
+
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px;padding:10px 12px;}
+  .card{background:var(--panel);border:1px solid #2A2015;border-radius:5px;padding:6px;position:relative;font-size:10px;display:flex;flex-direction:column;gap:3px;}
+  .card.avatar{border-left:3px solid var(--gold-dim);}
+  .card.magic{border-left:3px solid #5B4A8A;}
+  .card .thumb{height:60px;background:#0F0B08;border-radius:3px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:9px;overflow:hidden;}
+  .card .thumb img{width:100%;height:100%;object-fit:cover;}
+  .card .nm{font-weight:600;font-family:'Noto Serif Thai',serif;line-height:1.2;min-height:24px;}
+  .card .stats{color:var(--muted);font-family:'IBM Plex Mono',monospace;font-size:9px;}
+  .card .qtyrow{display:flex;align-items:center;justify-content:space-between;margin-top:auto;}
+  .card .qtybtn{width:22px;height:22px;border-radius:3px;border:1px solid var(--gold-dim);background:#0F0B08;color:var(--gold);font-size:14px;line-height:1;display:flex;align-items:center;justify-content:center;}
+  .card .qtybtn:disabled{opacity:.3;}
+  .card .qty{font-family:'IBM Plex Mono',monospace;font-weight:700;min-width:16px;text-align:center;}
+
+  #deckDrawer{position:fixed;bottom:0;left:0;right:0;background:var(--panel);border-top:1px solid var(--gold-dim);max-height:45vh;display:flex;flex-direction:column;transform:translateY(calc(100% - 46px));transition:transform .2s;}
+  #deckDrawer.open{transform:translateY(0);}
+  #deckDrawer .handle{padding:10px 14px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;border-bottom:1px solid #2A2015;}
+  #deckDrawer .handle b{font-family:'Noto Serif Thai',serif;color:var(--gold);}
+  #deckList{overflow-y:auto;padding:8px 14px;display:flex;flex-direction:column;gap:5px;}
+  #deckList .drow{display:flex;justify-content:space-between;align-items:center;font-size:12px;background:#0F0B08;padding:5px 8px;border-radius:3px;}
+  #deckList .drow button{background:none;border:none;color:var(--crimson-bright);font-size:14px;cursor:pointer;}
+  .empty-msg{color:var(--muted);font-size:12px;text-align:center;padding:20px;}
+
+  /* auth gate */
+  .card-frame{background:linear-gradient(180deg,var(--panel),var(--panel-alt));border:1px solid var(--gold-dim);border-radius:4px;padding:20px;max-width:340px;margin:10px auto;}
+  .card-frame input[type=text],.card-frame input[type=password]{display:block;width:100%;background:#0F0B08;border:1px solid var(--gold-dim);color:var(--text);padding:11px 12px;border-radius:3px;font-size:14px;margin-bottom:10px;}
+  .authtab.active{background:var(--gold);color:#1A1208;}
+
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🃏 จัดเด็ค — Battle of Talingchan</h1>
+  <div id="authGateContainer"></div>
+  <div id="builderUi" style="display:none;">
+  <div class="row" style="margin-bottom:6px;">
+    <span style="font-size:12px;color:var(--muted);">👤 <b id="acctName" style="color:var(--text);"></b> &nbsp; 🪙 <span id="acctCoins" class="mono" style="color:var(--gold);"></span></span>
+    <a href="/" class="btn" style="text-decoration:none;">← กลับหน้าเล่นเกม</a>
+  </div>
+  <div class="row">
+    <input type="text" id="deckName" placeholder="ชื่อเด็ค เช่น เด็คมังกร">
+    <span class="counter" id="counter">0/50</span>
+  </div>
+  <div class="row" style="margin-top:6px;">
+    <select id="savedDecks" style="flex:1;"><option value="">— เด็คที่บันทึกไว้ —</option></select>
+    <button class="btn" id="loadBtn">โหลด</button>
+    <button class="btn crimson" id="deleteBtn">ลบ</button>
+    <button class="btn" id="clearBtn">ล้าง</button>
+    <button class="btn primary" id="saveBtn">บันทึกเด็ค</button>
+  </div>
+  </div>
+</header>
+<div id="msg"></div>
+
+<div id="gameArea" style="display:none;">
+<div class="tabs">
+  <div class="tab active" data-f="all">ทั้งหมด</div>
+  <div class="tab" data-f="avatar">Avatar</div>
+  <div class="tab" data-f="magic">Magic</div>
+</div>
+<div class="grid" id="cardGrid"></div>
+
+<div id="deckDrawer">
+  <div class="handle" id="drawerHandle"><b>เด็คปัจจุบัน</b><span class="mono" id="drawerCount">0/50</span></div>
+  <div id="deckList"></div>
+</div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+let allCards = [];
+let deck = {}; // id -> count
+let savedDecks = [];
+let filter = 'all';
+let currentUser = null;
+
+(async () => {
+  const user = await checkAuth();
+  if (user) startApp(user);
+  else renderAuthGate($('authGateContainer'), startApp);
+})();
+
+function startApp(user) {
+  currentUser = user;
+  $('authGateContainer').style.display = 'none';
+  $('builderUi').style.display = 'block';
+  $('gameArea').style.display = 'block';
+  $('acctName').textContent = user.username;
+  $('acctCoins').textContent = user.coins;
+  refreshSavedDecks();
+  loadCards();
+  updateCounter();
+}
+
+async function loadCards() {
+  const res = await fetch('/api/cards-public');
+  allCards = await res.json();
+  renderGrid();
+}
+
+function totalCount() { return Object.values(deck).reduce((a,b)=>a+b,0); }
+
+function updateCounter() {
+  const t = totalCount();
+  const c = $('counter');
+  c.textContent = `${t}/50`;
+  c.className = 'counter ' + (t === 50 ? 'ok' : 'bad');
+  $('drawerCount').textContent = `${t}/50`;
+  $('saveBtn').disabled = t !== 50 || !$('deckName').value.trim();
+}
+
+function renderGrid() {
+  const grid = $('cardGrid');
+  grid.innerHTML = '';
+  const list = filter === 'all' ? allCards : allCards.filter(c => c.type === filter);
+  list.forEach(c => {
+    const qty = deck[c.id] || 0;
+    const div = document.createElement('div');
+    div.className = 'card ' + c.type;
+    const stat = c.type === 'avatar' ? `Cost ${c.cost} · Gem ${c.gem||0} · Pw ${c.power}` : `${subtypeLabel(c.subtype)} · Gem ${c.gem||0}`;
+    div.innerHTML = `
+      <div class="thumb">${c.image ? `<img src="${c.image}">` : 'IMG'}</div>
+      <div class="nm">${escapeHtml(c.name)}</div>
+      <div class="stats">${stat}</div>
+      <div class="qtyrow">
+        <button class="qtybtn" ${qty<=0?'disabled':''} onclick="changeQty('${c.id}',-1)">−</button>
+        <span class="qty">${qty}</span>
+        <button class="qtybtn" ${qty>=4?'disabled':''} onclick="changeQty('${c.id}',1)">+</button>
+      </div>
+    `;
+    grid.appendChild(div);
+  });
+}
+
+function subtypeLabel(s) { return { land:'เวทย์สนาม', weapon:'อาวุธ', normal:'เวทปกติ', counter:'โต้กลับ' }[s] || s; }
+
+function changeQty(id, delta) {
+  const cur = deck[id] || 0;
+  const next = Math.max(0, Math.min(4, cur + delta));
+  if (next === 0) delete deck[id]; else deck[id] = next;
+  renderGrid();
+  renderDeckList();
+  updateCounter();
+}
+
+function renderDeckList() {
+  const el = $('deckList');
+  const ids = Object.keys(deck);
+  if (!ids.length) { el.innerHTML = '<div class="empty-msg">ยังไม่ได้เลือกการ์ด — แตะ + บนการ์ดด้านบน</div>'; return; }
+  el.innerHTML = ids.map(id => {
+    const c = allCards.find(x => x.id === id);
+    if (!c) return '';
+    return `<div class="drow"><span>${escapeHtml(c.name)} ×${deck[id]}</span><button onclick="changeQty('${id}',-deck['${id}'])">ลบทั้งหมด</button></div>`;
+  }).join('');
+}
+
+$('drawerHandle').onclick = () => $('deckDrawer').classList.toggle('open');
+document.querySelectorAll('.tab').forEach(t => t.onclick = () => {
+  document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+  t.classList.add('active');
+  filter = t.dataset.f;
+  renderGrid();
+});
+
+$('deckName').addEventListener('input', updateCounter);
+
+async function refreshSavedDecks() {
+  const sel = $('savedDecks');
+  sel.innerHTML = '<option value="">— เด็คที่บันทึกไว้ —</option>';
+  const res = await authFetch('/api/decks');
+  savedDecks = await res.json();
+  savedDecks.forEach(d => {
+    const opt = document.createElement('option');
+    opt.value = d.deckName;
+    opt.textContent = `${d.deckName} (${d.cards.reduce((a,c)=>a+c.count,0)} ใบ)`;
+    sel.appendChild(opt);
+  });
+}
+
+$('loadBtn').onclick = () => {
+  const name = $('savedDecks').value;
+  const d = savedDecks.find(x => x.deckName === name);
+  if (!d) return setMsg('เลือกเด็คที่จะโหลดก่อน');
+  deck = {};
+  d.cards.forEach(c => { deck[c.id] = c.count; });
+  $('deckName').value = d.deckName;
+  renderGrid(); renderDeckList(); updateCounter();
+  setMsg('');
+};
+
+$('deleteBtn').onclick = async () => {
+  const name = $('savedDecks').value;
+  if (!name) return setMsg('เลือกเด็คที่จะลบก่อน');
+  if (!confirm(`ลบเด็ค "${name}" ?`)) return;
+  await authFetch('/api/decks', { method: 'DELETE', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ deckName: name }) });
+  await refreshSavedDecks();
+  setMsg('ลบแล้ว');
+};
+
+$('clearBtn').onclick = () => { deck = {}; renderGrid(); renderDeckList(); updateCounter(); };
+
+$('saveBtn').onclick = async () => {
+  const deckName = $('deckName').value.trim();
+  const cards = Object.entries(deck).map(([id,count]) => ({ id, count }));
+  const res = await authFetch('/api/decks', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ deckName, cards }) });
+  const data = await res.json();
+  if (!res.ok) return setMsg(data.error || 'บันทึกไม่สำเร็จ');
+  setMsg('บันทึกเด็ค "' + deckName + '" แล้ว ✓');
+  refreshSavedDecks();
+};
+
+function setMsg(s) { $('msg').textContent = s; }
+function escapeHtml(s){ return String(s).replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+</script>
+</body>
+</html>
