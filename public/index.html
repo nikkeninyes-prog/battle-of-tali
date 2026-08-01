@@ -60,6 +60,11 @@
   .construct-slot{width:13px;height:18px;border:1px dashed #3A2E1E;border-radius:2px;opacity:.45;}
   .life-zone{display:flex;flex-direction:column;align-items:flex-end;gap:1px;}
 
+  .magiczone{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;min-height:22px;padding:2px 6px;}
+  .magiczone .chip{font-size:9px;font-family:'IBM Plex Mono',monospace;padding:2px 7px;border-radius:10px;border:1px solid #5B4A8A;background:#1A1428;color:#B9A8E8;white-space:nowrap;}
+  .magiczone .chip.counter{border-color:var(--gold-dim);background:#241A12;color:var(--gold);}
+  .magiczone .empty-slot{font-size:9px;color:var(--muted);font-family:'IBM Plex Mono',monospace;letter-spacing:.15em;opacity:.35;padding:2px 0;}
+
   .landzone{display:flex;align-items:center;justify-content:center;gap:6px;padding:3px;min-height:30px;}
   .landzone .lcard{width:56px;height:26px;border:1px solid var(--gold-dim);border-radius:3px;background:linear-gradient(160deg,var(--panel-alt),var(--panel));display:flex;align-items:center;justify-content:center;font-family:'Noto Serif Thai',serif;font-size:8.5px;text-align:center;padding:2px;color:var(--gold);line-height:1.1;}
   .landzone .lcard.empty{opacity:.35;border-style:dashed;color:var(--muted);font-family:'IBM Plex Mono',monospace;letter-spacing:.1em;}
@@ -158,9 +163,11 @@
   </div>
 
   <div class="field theirs" id="oppField"></div>
+  <div class="magiczone" id="oppMagicZone"></div>
 
   <div class="landzone" id="landZoneRow"></div>
 
+  <div class="magiczone" id="meMagicZone"></div>
   <div class="field mine" id="myField"></div>
 
   <div class="zonebar" id="meZoneBar">
@@ -266,6 +273,8 @@ function render(state) {
 
   renderField($('myField'), me.field, true, myTurn);
   renderField($('oppField'), opp ? opp.field : [], false, myTurn);
+  renderMagicZone($('meMagicZone'), me);
+  renderMagicZone($('oppMagicZone'), opp);
 
   renderHand(me.hand, myTurn, me);
 
@@ -455,6 +464,16 @@ function openGy(playerIdx) {
   $('gyModal').classList.add('show');
 }
 function closeGy() { $('gyModal').classList.remove('show'); }
+
+function renderMagicZone(el, player) {
+  if (!player) { el.innerHTML = `<div class="empty-slot">— — —</div>`; return; }
+  const chips = [];
+  player.field.forEach(f => {
+    (f.attachments || []).forEach(name => chips.push(`<span class="chip" title="ติดอยู่กับ ${escapeHtml(f.name)}">🗡️ ${escapeHtml(name)}</span>`));
+  });
+  if (player.hasCounter) chips.push(`<span class="chip counter" title="เตรียมไว้โต้กลับ">🛡️ ${escapeHtml(player.counterName || 'Counter')}</span>`);
+  el.innerHTML = chips.length ? chips.join('') : `<div class="empty-slot">— — —</div>`;
+}
 
 function renderLandZone(land) {
   const el = $('landZoneRow');
