@@ -1,1 +1,398 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>ศึกตลิ่งชัน — Battle of Talingchan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+Thai:wght@500;700;900&family=Noto+Sans+Thai:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<script src="/socket.io/socket.io.js"></script>
+<style>
+  :root{
+    --bg:#120D0A; --panel:#1D150F; --panel-alt:#261B12;
+    --gold:#C9A227; --gold-dim:#8A7226; --crimson:#A6291B; --crimson-bright:#D63A28;
+    --text:#EDE6D6; --muted:#9C8F76; --gem:#3E7CB1;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;height:100%;}
+  body{background:radial-gradient(1200px 600px at 50% -10%, #2A1D12 0%, var(--bg) 60%);color:var(--text);font-family:'Noto Sans Thai',sans-serif;-webkit-tap-highlight-color:transparent;overscroll-behavior:none;}
+  h1,h2,h3,.display{font-family:'Noto Serif Thai',serif;}
+  .mono{font-family:'IBM Plex Mono',monospace;letter-spacing:.02em;}
+  button{font-family:inherit;cursor:pointer;}
 
+  #lobby{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;gap:20px;text-align:center;}
+  .brand{font-weight:900;font-size:clamp(28px,7vw,42px);color:var(--gold);letter-spacing:.02em;text-shadow:0 0 24px rgba(201,162,39,.35);}
+  .brand small{display:block;font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--muted);font-weight:600;letter-spacing:.25em;margin-top:6px;}
+  .card-frame{background:linear-gradient(180deg,var(--panel),var(--panel-alt));border:1px solid var(--gold-dim);border-radius:4px;padding:22px;width:100%;max-width:360px;position:relative;}
+  .card-frame::before,.card-frame::after{content:'';position:absolute;width:14px;height:14px;border:2px solid var(--gold);}
+  .card-frame::before{top:-1px;left:-1px;border-right:none;border-bottom:none;}
+  .card-frame::after{bottom:-1px;right:-1px;border-left:none;border-top:none;}
+  input[type=text]{width:100%;background:#0F0B08;border:1px solid var(--gold-dim);color:var(--text);padding:12px 14px;border-radius:3px;font-size:16px;margin-bottom:12px;font-family:'IBM Plex Mono',monospace;text-align:center;letter-spacing:.15em;}
+  input[type=text]::placeholder{color:var(--muted);letter-spacing:normal;font-family:'Noto Sans Thai',sans-serif;}
+  .btn{display:block;width:100%;padding:13px;border-radius:3px;border:1px solid var(--gold);background:transparent;color:var(--gold);font-weight:600;font-size:15px;letter-spacing:.03em;transition:.15s;margin-top:8px;}
+  .btn:active{transform:scale(.98);}
+  .btn.primary{background:var(--gold);color:#1A1208;}
+  .btn.crimson{border-color:var(--crimson);color:var(--crimson-bright);}
+  .btn:disabled{opacity:.35;pointer-events:none;}
+  .divider{color:var(--muted);font-size:12px;margin:14px 0;letter-spacing:.2em;font-family:'IBM Plex Mono',monospace;}
+  .roomcode{font-family:'IBM Plex Mono',monospace;font-size:32px;letter-spacing:.3em;color:var(--gold);margin:10px 0;}
+  #err{color:var(--crimson-bright);font-size:13px;min-height:18px;}
+
+  #game{display:none;min-height:100vh;flex-direction:column;padding:8px;gap:6px;max-width:520px;margin:0 auto;}
+  .topbar{display:flex;justify-content:space-between;align-items:center;padding:4px 6px;font-size:12px;color:var(--muted);font-family:'IBM Plex Mono',monospace;}
+  .topbar .phase{color:var(--gold);font-weight:600;}
+
+  .player-row{display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:var(--panel);border:1px solid #2A2015;border-radius:4px;}
+  .player-row.attackable{border-color:var(--crimson-bright);box-shadow:0 0 0 2px rgba(214,58,40,.35);}
+  .player-row .pname{font-weight:600;font-size:14px;}
+  .player-row .crit{color:var(--crimson-bright);font-size:10px;font-weight:700;letter-spacing:.05em;}
+  .life{display:flex;gap:3px;align-items:center;}
+  .life .flame{width:11px;height:14px;background:var(--crimson-bright);clip-path:polygon(50% 0%,80% 35%,100% 70%,50% 100%,0% 70%,20% 35%);}
+  .life .flame.dim{background:#3A2A1E;}
+  .deckcount{font-size:11px;color:var(--muted);}
+
+  .field{display:flex;gap:6px;justify-content:center;min-height:104px;align-items:center;padding:6px;background:radial-gradient(circle at 50% 50%, rgba(201,162,39,.05), transparent 70%);border-top:1px dashed #2A2015;border-bottom:1px dashed #2A2015;}
+  .field.mine{border-bottom:none;}
+  .field.theirs{border-top:none;}
+  .slot{width:76px;height:96px;border:1px dashed #3A2E1E;border-radius:4px;}
+
+  .avatar-card{width:76px;height:96px;border-radius:4px;position:relative;background:linear-gradient(160deg,var(--panel-alt),var(--panel));border:1px solid var(--gold-dim);padding:4px;display:flex;flex-direction:column;justify-content:space-between;font-size:10px;}
+  .avatar-card.selectable{border-color:var(--gold);box-shadow:0 0 0 2px rgba(201,162,39,.4);}
+  .avatar-card.targetable{border-color:var(--crimson-bright);box-shadow:0 0 0 2px rgba(214,58,40,.5);}
+  .avatar-card .img{flex:1;background-size:cover;background-position:center;background-color:#0F0B08;border-radius:2px;margin-bottom:3px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:9px;text-align:center;}
+  .avatar-card .nm{font-weight:600;line-height:1.15;font-family:'Noto Serif Thai',serif;font-size:10px;}
+  .avatar-card .pw{text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:700;color:var(--crimson-bright);font-size:13px;}
+  .avatar-card.attacked{opacity:.4;}
+
+  .hand{display:flex;gap:6px;overflow-x:auto;padding:8px 4px;min-height:130px;align-items:flex-end;}
+  .hand-card{flex:0 0 auto;width:78px;height:114px;border-radius:4px;position:relative;background:linear-gradient(160deg,var(--panel-alt),var(--panel));border:1px solid var(--gold-dim);padding:5px;display:flex;flex-direction:column;justify-content:space-between;font-size:10px;transition:.12s;}
+  .hand-card.avatar{border-color:var(--gold-dim);}
+  .hand-card.magic{border-color:#5B4A8A;}
+  .hand-card.picked{outline:2px solid var(--gem);transform:translateY(-6px);}
+  .hand-card.dimmed{opacity:.35;}
+  .hand-card:active{transform:translateY(-4px);}
+  .hand-card .img{flex:1;background-size:cover;background-position:center;background-color:#0F0B08;border-radius:2px;margin-bottom:3px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:9px;text-align:center;}
+  .hand-card .nm{font-weight:600;line-height:1.15;font-family:'Noto Serif Thai',serif;font-size:10px;}
+  .hand-card .sub{font-size:8.5px;color:var(--muted);display:flex;justify-content:space-between;}
+  .hand-card .costgem{font-family:'IBM Plex Mono',monospace;font-weight:700;font-size:9px;}
+  .hand-card .costgem .c{color:var(--gold);}
+  .hand-card .costgem .g{color:var(--gem);}
+
+  .controls{display:flex;gap:8px;padding:6px 4px;flex-wrap:wrap;}
+  .controls .btn{width:auto;flex:1;min-width:90px;padding:11px;font-size:13px;}
+
+  #summonBar{display:none;background:var(--panel-alt);border:1px solid var(--gem);border-radius:4px;padding:8px 10px;font-size:12px;align-items:center;justify-content:space-between;gap:8px;}
+  #summonBar.show{display:flex;}
+  #summonBar .gemtxt{font-family:'IBM Plex Mono',monospace;color:var(--gem);}
+
+  .log{background:#0F0B08;border:1px solid #2A2015;border-radius:4px;padding:8px 10px;font-size:11px;color:var(--muted);font-family:'IBM Plex Mono',monospace;max-height:80px;overflow-y:auto;line-height:1.6;}
+  .log div:last-child{color:var(--text);}
+
+  #overlay{position:fixed;inset:0;background:rgba(10,7,5,.9);display:none;align-items:center;justify-content:center;z-index:50;text-align:center;padding:20px;flex-direction:column;}
+  #overlay.show{display:flex;}
+  #overlay h2{color:var(--gold);font-size:28px;margin-bottom:6px;}
+  .hint{font-size:11px;color:var(--muted);text-align:center;padding:4px;}
+</style>
+</head>
+<body>
+
+<div id="lobby">
+  <div class="brand">ศึกตลิ่งชัน<small>BATTLE OF TALINGCHAN — PRIVATE MATCH</small></div>
+  <div class="card-frame">
+    <input type="text" id="nameInput" placeholder="ชื่อผู้เล่น">
+    <button class="btn primary" id="createBtn">สร้างห้องใหม่</button>
+    <div class="divider">— หรือ —</div>
+    <input type="text" id="codeInput" placeholder="รหัสห้อง" style="text-transform:uppercase">
+    <button class="btn" id="joinBtn">เข้าร่วมห้อง</button>
+    <div id="err"></div>
+  </div>
+  <div id="waitBox" class="card-frame" style="display:none;">
+    <div style="font-size:12px;color:var(--muted);">รหัสห้องของคุณ — ส่งให้เพื่อน</div>
+    <div class="roomcode" id="codeShow">-----</div>
+    <div id="waitStatus" style="font-size:13px;color:var(--muted);">รอผู้เล่นอีกคน...</div>
+    <button class="btn primary" id="startBtn" style="display:none;">เริ่มเกม</button>
+  </div>
+</div>
+
+<div id="game">
+  <div class="topbar">
+    <span>ห้อง <span id="roomLabel" class="mono"></span></span>
+    <span class="phase" id="turnLabel">-</span>
+  </div>
+
+  <div class="player-row" id="oppRow">
+    <div><div class="pname" id="oppName">คู่ต่อสู้</div><div class="deckcount" id="oppDeck">เด็ค: -</div></div>
+    <div style="text-align:right;">
+      <div class="crit" id="oppCrit"></div>
+      <div class="life" id="oppLife"></div>
+    </div>
+  </div>
+
+  <div class="field theirs" id="oppField"></div>
+  <div class="field mine" id="myField"></div>
+
+  <div class="player-row" id="meRow">
+    <div><div class="pname" id="meName">ฉัน</div><div class="deckcount" id="meDeck">เด็ค: -</div></div>
+    <div style="text-align:right;">
+      <div class="crit" id="meCrit"></div>
+      <div class="life" id="meLife"></div>
+    </div>
+  </div>
+
+  <div id="summonBar">
+    <span>เลือกการ์ดทิ้งจ่าย Gem — <span class="gemtxt" id="summonGemTxt">0/0</span></span>
+    <div style="display:flex;gap:6px;">
+      <button class="btn crimson" style="width:auto;padding:7px 12px;font-size:12px;" onclick="cancelSummon()">ยกเลิก</button>
+      <button class="btn primary" style="width:auto;padding:7px 12px;font-size:12px;" id="confirmSummonBtn" disabled onclick="confirmSummon()">อัญเชิญ</button>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="btn crimson" id="cancelBtn" style="display:none;">ยกเลิก</button>
+    <button class="btn" id="endTurnBtn">จบเทิร์น</button>
+  </div>
+  <div class="hint" id="hintText">รอเทิร์นของคุณ...</div>
+
+  <div class="hand" id="handRow"></div>
+  <div class="log" id="logBox"></div>
+</div>
+
+<div id="overlay">
+  <h2 id="overText"></h2>
+  <button class="btn primary" style="max-width:200px;margin-top:16px;" onclick="location.reload()">เล่นอีกครั้ง</button>
+</div>
+
+<script>
+const socket = io();
+let myIdx = -1;
+let selected = null; // {kind:'attack'|'magic-target'|'magic-target-own', uid|handIndex}
+let lastState = null;
+let summonMode = null; // {handIndex, cost, picked:Set}
+
+const $ = id => document.getElementById(id);
+
+$('createBtn').onclick = () => socket.emit('createRoom', { name: $('nameInput').value.trim() || 'ผู้เล่น 1' });
+$('joinBtn').onclick = () => {
+  const code = $('codeInput').value.trim().toUpperCase();
+  if (!code) return;
+  socket.emit('joinRoom', { code, name: $('nameInput').value.trim() || 'ผู้เล่น 2' });
+};
+$('startBtn').onclick = () => socket.emit('startGame');
+$('endTurnBtn').onclick = () => { selected = null; renderSelection(); socket.emit('endTurn'); };
+$('cancelBtn').onclick = () => { selected = null; renderSelection(); };
+
+socket.on('errorMsg', msg => { $('err').textContent = msg; });
+socket.on('joined', ({ code }) => { $('err').textContent = ''; $('waitBox').style.display = 'block'; $('codeShow').textContent = code; });
+
+socket.on('state', (state) => {
+  lastState = state;
+  myIdx = state.you;
+  if (!state.started) {
+    $('waitStatus').textContent = state.players.length < 2 ? 'รอผู้เล่นอีกคน...' : 'พร้อมแล้ว!';
+    if (state.players.length === 2 && myIdx === 0) $('startBtn').style.display = 'block';
+    return;
+  }
+  $('lobby').style.display = 'none';
+  $('game').style.display = 'flex';
+  render(state);
+});
+
+function render(state) {
+  $('roomLabel').textContent = state.code;
+  const me = state.players[myIdx];
+  const opp = state.players[1 - myIdx];
+  const myTurn = state.turn === myIdx;
+
+  $('turnLabel').textContent = state.winner !== null ? 'จบเกม' : (myTurn ? 'ตาของคุณ' : `ตาของ ${opp ? opp.name : 'คู่ต่อสู้'}`);
+
+  $('meName').textContent = me.name + (myTurn ? ' •' : '');
+  $('meDeck').textContent = `เด็ค: ${me.deckCount}`;
+  $('oppName').textContent = opp ? opp.name + (!myTurn && state.winner===null ? ' •' : '') : 'รอผู้เล่น...';
+  $('oppDeck').textContent = `เด็ค: ${opp ? opp.deckCount : '-'}`;
+
+  renderLife($('meLife'), me.life, me.critical);
+  renderLife($('oppLife'), opp ? opp.life : 0, opp ? opp.critical : false);
+  $('meCrit').textContent = me.critical ? 'สาหัส!' : '';
+  $('oppCrit').textContent = opp && opp.critical ? 'สาหัส!' : '';
+
+  const oppHasField = opp && opp.field.length > 0;
+  $('oppRow').classList.toggle('attackable', !!(selected && selected.kind === 'attack' && !oppHasField));
+
+  renderField($('myField'), me.field, true, myTurn);
+  renderField($('oppField'), opp ? opp.field : [], false, myTurn);
+
+  renderHand(me.hand, myTurn, me);
+
+  $('endTurnBtn').disabled = !myTurn;
+  $('endTurnBtn').style.opacity = myTurn ? 1 : .5;
+
+  $('logBox').innerHTML = state.log.map(l => `<div>${escapeHtml(l)}</div>`).join('');
+  $('logBox').scrollTop = $('logBox').scrollHeight;
+
+  updateHint(state, me, myTurn);
+
+  if (state.winner !== null) {
+    $('overlay').classList.add('show');
+    $('overText').textContent = state.winner === myIdx ? 'คุณชนะ! 🔥' : 'คุณแพ้';
+  }
+}
+
+function renderLife(el, life, critical) {
+  el.innerHTML = '';
+  const shown = Math.max(life, 0);
+  for (let i = 0; i < 5; i++) {
+    const f = document.createElement('div');
+    f.className = 'flame' + (i < shown ? '' : ' dim');
+    el.appendChild(f);
+  }
+}
+
+function renderField(el, field, mine, myTurn) {
+  el.innerHTML = '';
+  for (let i = 0; i < 4; i++) {
+    const c = field[i];
+    if (!c) { const s = document.createElement('div'); s.className = 'slot'; el.appendChild(s); continue; }
+    const div = document.createElement('div');
+    div.className = 'avatar-card' + (c.attacked ? ' attacked' : '');
+    const canSelectAttacker = mine && myTurn && !c.attacked && (!selected || selected.kind !== 'attack');
+    const isTargetable = selected && ((selected.kind === 'attack' && !mine) || (selected.kind === 'magic-target' && !mine) || (selected.kind === 'magic-target-own' && mine));
+    if (canSelectAttacker) div.classList.add('selectable');
+    if (isTargetable) div.classList.add('targetable');
+    div.innerHTML = `
+      <div class="img">${c.image ? `<img src="${c.image}" style="width:100%;height:100%;object-fit:cover;border-radius:2px;">` : 'IMG'}</div>
+      <div class="nm">${escapeHtml(c.name)}</div>
+      <div class="pw">${c.power}</div>
+    `;
+    div.onclick = () => onFieldCardClick(c, mine, myTurn);
+    el.appendChild(div);
+  }
+}
+
+function onFieldCardClick(c, mine, myTurn) {
+  if (!myTurn) return;
+  if (selected && selected.kind === 'attack' && !mine) {
+    socket.emit('attack', { attackerUid: selected.uid, targetUid: c.uid });
+    selected = null; renderSelection(); return;
+  }
+  if (selected && selected.kind === 'magic-target' && !mine) {
+    socket.emit('playMagic', { handIndex: selected.handIndex, targetUid: c.uid });
+    selected = null; renderSelection(); return;
+  }
+  if (selected && selected.kind === 'magic-target-own' && mine) {
+    socket.emit('playMagic', { handIndex: selected.handIndex, targetUid: c.uid });
+    selected = null; renderSelection(); return;
+  }
+  if (mine && !c.attacked) {
+    selected = { kind: 'attack', uid: c.uid };
+    renderSelection();
+  }
+}
+
+function renderHand(hand, myTurn, me) {
+  const row = $('handRow');
+  row.innerHTML = '';
+  hand.forEach((c, idx) => {
+    const div = document.createElement('div');
+    let cls = 'hand-card ' + c.type;
+    if (summonMode) {
+      if (idx === summonMode.handIndex) cls += ' picked';
+      else if (summonMode.picked.has(idx)) cls += ' picked';
+    }
+    div.className = cls;
+    const sub = c.type === 'avatar'
+      ? `<span class="costgem"><span class="c">Cost ${c.cost}</span></span><span class="costgem"><span class="g">Gem ${c.gem||0}</span></span>`
+      : `<span>${subtypeLabel(c.subtype)}</span><span class="costgem"><span class="g">Gem ${c.gem||0}</span></span>`;
+    div.innerHTML = `
+      <div class="img">${c.image ? `<img src="${c.image}" style="width:100%;height:100%;object-fit:cover;border-radius:2px;">` : 'IMG'}</div>
+      <div class="nm">${escapeHtml(c.name)}${c.type==='avatar' ? ` <span style="float:right;color:var(--crimson-bright);">${c.power}</span>` : ''}</div>
+      <div class="sub">${sub}</div>
+    `;
+    div.onclick = () => onHandCardClick(c, idx, myTurn, me);
+    row.appendChild(div);
+  });
+}
+
+function subtypeLabel(s) { return { land: 'เวทย์สนาม', weapon: 'อาวุธ', normal: 'เวทปกติ', counter: 'โต้กลับ' }[s] || s; }
+
+function onHandCardClick(c, idx, myTurn, me) {
+  if (summonMode) {
+    if (idx === summonMode.handIndex) return; // can't discard itself
+    if (summonMode.picked.has(idx)) summonMode.picked.delete(idx);
+    else summonMode.picked.add(idx);
+    updateSummonBar(me);
+    renderHand(me.hand, myTurn, me);
+    return;
+  }
+  if (!myTurn) {
+    if (c.type === 'magic' && c.subtype === 'counter') socket.emit('setCounter', { handIndex: idx });
+    return;
+  }
+  if (c.type === 'avatar') {
+    if (me.playedAvatar) return;
+    if (me.field.length >= 4) return;
+    if ((c.cost || 0) === 0) { socket.emit('playAvatar', { handIndex: idx, discardIndices: [] }); return; }
+    summonMode = { handIndex: idx, cost: c.cost, picked: new Set() };
+    updateSummonBar(me);
+    renderHand(me.hand, myTurn, me);
+    return;
+  }
+  if (c.type === 'magic') {
+    if (c.subtype === 'counter') { socket.emit('setCounter', { handIndex: idx }); return; }
+    if (me.playedMagic) return;
+    if (c.effect && (c.effect.kind === 'field_buff' || c.effect.kind === 'heal_life')) {
+      socket.emit('playMagic', { handIndex: idx, targetUid: null }); return;
+    }
+    if (c.effect && c.effect.kind === 'buff_power') { selected = { kind: 'magic-target-own', handIndex: idx }; renderSelection(); return; }
+    if (c.effect && c.effect.kind === 'damage') { selected = { kind: 'magic-target', handIndex: idx }; renderSelection(); return; }
+  }
+}
+
+function updateSummonBar(me) {
+  const bar = $('summonBar');
+  if (!summonMode) { bar.classList.remove('show'); return; }
+  bar.classList.add('show');
+  const total = [...summonMode.picked].reduce((s,i)=> s + ((me.hand[i]&&me.hand[i].gem)||0), 0);
+  $('summonGemTxt').textContent = `${total}/${summonMode.cost}`;
+  $('confirmSummonBtn').disabled = total < summonMode.cost;
+}
+function cancelSummon() { summonMode = null; if (lastState) render(lastState); }
+function confirmSummon() {
+  if (!summonMode) return;
+  socket.emit('playAvatar', { handIndex: summonMode.handIndex, discardIndices: [...summonMode.picked] });
+  summonMode = null;
+  $('summonBar').classList.remove('show');
+}
+
+function renderSelection() {
+  $('cancelBtn').style.display = selected ? 'block' : 'none';
+  if (lastState) render(lastState);
+}
+
+function updateHint(state, me, myTurn) {
+  const h = $('hintText');
+  if (state.winner !== null) { h.textContent = ''; return; }
+  if (summonMode) { h.textContent = 'แตะการ์ดในมือเพื่อเลือกทิ้งจ่าย Gem แล้วกดยืนยัน'; return; }
+  if (!myTurn) {
+    h.textContent = me.hand.some(c => c.type === 'magic' && c.subtype === 'counter')
+      ? 'ไม่ใช่ตาคุณ — แตะการ์ดโต้กลับเพื่อเตรียมใช้ได้'
+      : 'รอเทิร์นของคู่ต่อสู้...';
+    return;
+  }
+  if (state.firstTurn) { h.textContent = 'เทิร์นแรกของเกม โจมตีไม่ได้ — ลง Avatar หรือใช้เวทได้'; return; }
+  if (selected && selected.kind === 'attack') { h.textContent = 'เลือกอาวตาร์ศัตรู หรือแตะแถบคู่ต่อสู้เพื่อโจมตีตรง (ถ้าไม่มี Avatar กั้น)'; return; }
+  if (selected && selected.kind === 'magic-target') { h.textContent = 'เลือกอาวตาร์ศัตรูเป็นเป้าหมาย'; return; }
+  if (selected && selected.kind === 'magic-target-own') { h.textContent = 'เลือกอาวตาร์ของคุณเป็นเป้าหมาย'; return; }
+  h.textContent = 'แตะการ์ดในมือเพื่อลง หรือแตะอาวตาร์ในสนามของคุณเพื่อโจมตี';
+}
+
+$('oppRow').addEventListener('click', () => {
+  if (selected && selected.kind === 'attack') {
+    socket.emit('attack', { attackerUid: selected.uid, targetUid: null });
+    selected = null; renderSelection();
+  }
+});
+
+function escapeHtml(s) { return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+</script>
+</body>
+</html>

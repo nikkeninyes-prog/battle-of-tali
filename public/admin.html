@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Admin — จัดการการ์ด | ศึกตลิ่งชัน</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+Thai:wght@600;800&family=Noto+Sans+Thai:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#120D0A;--panel:#1D150F;--gold:#C9A227;--crimson:#A6291B;--text:#EDE6D6;--muted:#9C8F76;}
+  *{box-sizing:border-box;}
+  body{background:var(--bg);color:var(--text);font-family:'Noto Sans Thai',sans-serif;margin:0;padding:16px;}
+  h1{font-family:'Noto Serif Thai',serif;color:var(--gold);font-size:22px;margin:0 0 4px;}
+  .sub{color:var(--muted);font-size:12px;margin-bottom:18px;font-family:'IBM Plex Mono',monospace;}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;}
+  .card{background:var(--panel);border:1px solid #2A2015;border-radius:6px;padding:12px;}
+  .card .thumb{width:100%;height:120px;background:#0F0B08;border-radius:4px;margin-bottom:8px;display:flex;align-items:center;justify-content:center;overflow:hidden;color:var(--muted);font-size:11px;}
+  .card .thumb img{width:100%;height:100%;object-fit:cover;}
+  label{display:block;font-size:11px;color:var(--muted);margin:6px 0 2px;}
+  input,select,textarea{width:100%;background:#0F0B08;border:1px solid #3A2E1E;color:var(--text);padding:7px 8px;border-radius:3px;font-size:13px;font-family:inherit;}
+  textarea{resize:vertical;min-height:40px;}
+  .row2{display:flex;gap:8px;}
+  .row2 > div{flex:1;}
+  input[type=file]{padding:5px;font-size:11px;}
+  button{margin-top:10px;width:100%;padding:9px;border-radius:3px;border:1px solid var(--gold);background:transparent;color:var(--gold);font-weight:600;cursor:pointer;font-size:13px;}
+  button:active{transform:scale(.98);}
+  #saveBar{position:sticky;top:0;background:var(--bg);padding:10px 0;z-index:10;display:flex;gap:10px;align-items:center;border-bottom:1px solid #2A2015;margin-bottom:14px;}
+  #saveBar button{width:auto;padding:10px 20px;background:var(--gold);color:#1A1208;}
+  #status{font-size:12px;color:var(--muted);font-family:'IBM Plex Mono',monospace;}
+  .badge{display:inline-block;font-size:9px;padding:2px 6px;border-radius:10px;border:1px solid var(--muted);color:var(--muted);margin-left:6px;}
+</style>
+</head>
+<body>
+<div id="saveBar">
+  <button onclick="saveAll()">บันทึกทั้งหมด</button>
+  <span id="status"></span>
+</div>
+<h1>จัดการการ์ด</h1>
+<div class="sub">แก้ข้อมูลการ์ด + อัปโหลดภาพจริงแทน placeholder — ใช้ส่วนตัวเท่านั้น ไม่เปิดสาธารณะ</div>
+
+<div class="grid" id="grid"></div>
+
+<script>
+let cards = [];
+
+async function load() {
+  const res = await fetch('/api/cards');
+  cards = await res.json();
+  render();
+}
+
+function render() {
+  const grid = document.getElementById('grid');
+  grid.innerHTML = '';
+  cards.forEach((c, i) => {
+    const div = document.createElement('div');
+    div.className = 'card';
+    const isAvatar = c.type === 'avatar';
+    div.innerHTML = `
+      <div class="thumb" id="thumb-${i}">${c.image ? `<img src="${c.image}">` : 'ยังไม่มีภาพ'}</div>
+      <label>ID <span class="badge">${c.id}</span></label>
+      <label>ชื่อการ์ด</label>
+      <input value="${escAttr(c.name)}" onchange="cards[${i}].name=this.value">
+      <label>ประเภท</label>
+      <select onchange="cards[${i}].type=this.value; render();">
+        <option value="avatar" ${isAvatar ? 'selected' : ''}>Avatar</option>
+        <option value="magic" ${!isAvatar ? 'selected' : ''}>Magic</option>
+      </select>
+      ${isAvatar ? `
+        <div class="row2">
+          <div><label>Cost (อัญเชิญ)</label><input type="number" value="${c.cost||0}" onchange="cards[${i}].cost=+this.value"></div>
+          <div><label>Power</label><input type="number" value="${c.power||0}" onchange="cards[${i}].power=+this.value"></div>
+        </div>
+        <label>Gem (ได้เมื่อทิ้งใบนี้จ่ายค่าคอสต์ใบอื่น)</label>
+        <input type="number" value="${c.gem||0}" onchange="cards[${i}].gem=+this.value">
+      ` : `
+        <label>ชนิดเวท</label>
+        <select onchange="cards[${i}].subtype=this.value">
+          ${['land','weapon','normal','counter'].map(s => `<option value="${s}" ${c.subtype===s?'selected':''}>${s}</option>`).join('')}
+        </select>
+        <label>Gem (ได้เมื่อทิ้งใบนี้จ่ายค่าคอสต์ใบอื่น)</label>
+        <input type="number" value="${c.gem||0}" onchange="cards[${i}].gem=+this.value">
+        <label>ค่าเอฟเฟกต์ (value)</label>
+        <input type="number" value="${c.effect ? c.effect.value : 0}" onchange="cards[${i}].effect.value=+this.value">
+      `}
+      <label>คำอธิบาย</label>
+      <textarea onchange="cards[${i}].text=this.value">${escHtml(c.text || '')}</textarea>
+      <label>อัปโหลดภาพจริง</label>
+      <input type="file" accept="image/*" onchange="uploadImage('${c.id}', this.files[0], ${i})">
+    `;
+    grid.appendChild(div);
+  });
+}
+
+async function uploadImage(cardId, file, idx) {
+  if (!file) return;
+  const fd = new FormData();
+  fd.append('cardId', cardId);
+  fd.append('image', file);
+  const res = await fetch('/api/upload-image', { method: 'POST', body: fd });
+  const data = await res.json();
+  if (data.image) {
+    cards[idx].image = data.image;
+    render();
+    setStatus('อัปโหลดภาพแล้ว ✓');
+  } else {
+    setStatus('อัปโหลดไม่สำเร็จ: ' + (data.error || ''));
+  }
+}
+
+async function saveAll() {
+  const res = await fetch('/api/cards', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(cards)
+  });
+  setStatus(res.ok ? 'บันทึกแล้ว ✓' : 'บันทึกไม่สำเร็จ');
+}
+
+function setStatus(s) {
+  const el = document.getElementById('status');
+  el.textContent = s;
+  setTimeout(() => { el.textContent = ''; }, 2500);
+}
+function escAttr(s){return String(s).replace(/"/g,'&quot;');}
+function escHtml(s){return String(s).replace(/[&<>]/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));}
+
+load();
+</script>
+</body>
+</html>
