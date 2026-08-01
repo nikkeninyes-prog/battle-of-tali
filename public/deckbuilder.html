@@ -59,6 +59,19 @@
   #deckList .drow button{background:none;border:none;color:var(--crimson-bright);font-size:14px;cursor:pointer;}
   .empty-msg{color:var(--muted);font-size:12px;text-align:center;padding:20px;}
 
+  #cardDetailModal{position:fixed;inset:0;background:rgba(10,7,5,.9);display:none;align-items:center;justify-content:center;z-index:65;padding:24px;}
+  #cardDetailModal.show{display:flex;}
+  #cardDetailModal .detail-box{background:var(--panel);border:1px solid var(--gold);border-radius:6px;padding:18px;max-width:320px;width:100%;text-align:center;}
+  #cardDetailModal .detail-img{width:100%;height:180px;background:#0F0B08;border-radius:4px;margin-bottom:12px;display:flex;align-items:center;justify-content:center;color:var(--muted);overflow:hidden;}
+  #cardDetailModal .detail-img img{width:100%;height:100%;object-fit:cover;}
+  #cardDetailModal h3{margin:0 0 8px;color:var(--gold);font-size:18px;}
+  #cardDetailModal .detail-stats{display:flex;justify-content:center;gap:14px;font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:700;margin-bottom:10px;flex-wrap:wrap;}
+  #cardDetailModal .detail-stats span.pw{color:var(--crimson-bright);}
+  #cardDetailModal .detail-stats span.cost{color:var(--gold);}
+  #cardDetailModal .detail-stats span.gem{color:var(--gem);}
+  #cardDetailModal .detail-text{font-size:13px;color:var(--text);line-height:1.6;margin-bottom:14px;min-height:20px;}
+
+
   /* auth gate */
   .card-frame{background:linear-gradient(180deg,var(--panel),var(--panel-alt));border:1px solid var(--gold-dim);border-radius:4px;padding:20px;max-width:340px;margin:10px auto;}
   .card-frame input[type=text],.card-frame input[type=password]{display:block;width:100%;background:#0F0B08;border:1px solid var(--gold-dim);color:var(--text);padding:11px 12px;border-radius:3px;font-size:14px;margin-bottom:10px;}
@@ -103,6 +116,16 @@
   <div class="handle" id="drawerHandle"><b>เด็คปัจจุบัน</b><span class="mono" id="drawerCount">0/50</span></div>
   <div id="deckList"></div>
 </div>
+</div>
+
+<div id="cardDetailModal" onclick="if(event.target===this) closeCardDetail()">
+  <div class="detail-box">
+    <div class="detail-img" id="cdImg"></div>
+    <h3 id="cdName"></h3>
+    <div class="detail-stats" id="cdStats"></div>
+    <div class="detail-text" id="cdText"></div>
+    <button class="btn" style="width:auto;" onclick="closeCardDetail()">ปิด</button>
+  </div>
 </div>
 
 <script>
@@ -167,6 +190,7 @@ function renderGrid() {
         <button class="qtybtn" ${qty>=4?'disabled':''} onclick="changeQty('${c.id}',1)">+</button>
       </div>
     `;
+    attachLongPress(div, () => showCardDetail(c));
     grid.appendChild(div);
   });
 }
@@ -250,6 +274,39 @@ $('saveBtn').onclick = async () => {
 
 function setMsg(s) { $('msg').textContent = s; }
 function escapeHtml(s){ return String(s).replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+
+function attachLongPress(el, onLongPress, holdMs = 420) {
+  let timer = null, startX = 0, startY = 0, fired = false;
+  const clear = () => { if (timer) { clearTimeout(timer); timer = null; } };
+  el.addEventListener('pointerdown', (e) => {
+    fired = false; startX = e.clientX; startY = e.clientY;
+    clear();
+    timer = setTimeout(() => { fired = true; if (navigator.vibrate) navigator.vibrate(15); onLongPress(); }, holdMs);
+  });
+  el.addEventListener('pointermove', (e) => {
+    if (timer && (Math.abs(e.clientX - startX) > 10 || Math.abs(e.clientY - startY) > 10)) clear();
+  });
+  ['pointerup', 'pointerleave', 'pointercancel'].forEach(evt => el.addEventListener(evt, clear));
+  el.addEventListener('click', (e) => {
+    if (fired) { e.stopImmediatePropagation(); e.preventDefault(); fired = false; }
+  }, true);
+  el.addEventListener('contextmenu', (e) => e.preventDefault());
+}
+
+function showCardDetail(c) {
+  $('cdImg').innerHTML = c.image ? `<img src="${c.image}">` : 'ไม่มีภาพ';
+  $('cdName').textContent = c.name;
+  const stats = [];
+  if (c.type === 'avatar') {
+    stats.push(`<span class="cost">Cost ${c.cost}</span>`, `<span class="gem">Gem ${c.gem||0}</span>`, `<span class="pw">Power ${c.power}</span>`);
+  } else {
+    stats.push(`<span>${subtypeLabel(c.subtype)}</span>`, `<span class="gem">Gem ${c.gem||0}</span>`);
+  }
+  $('cdStats').innerHTML = stats.join('');
+  $('cdText').textContent = c.text || 'ไม่มีคำอธิบาย';
+  $('cardDetailModal').classList.add('show');
+}
+function closeCardDetail() { $('cardDetailModal').classList.remove('show'); }
 </script>
 </body>
 </html>

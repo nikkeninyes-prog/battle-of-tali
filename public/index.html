@@ -28,8 +28,8 @@
   .card-frame::before,.card-frame::after{content:'';position:absolute;width:14px;height:14px;border:2px solid var(--gold);}
   .card-frame::before{top:-1px;left:-1px;border-right:none;border-bottom:none;}
   .card-frame::after{bottom:-1px;right:-1px;border-left:none;border-top:none;}
-  input[type=text]{width:100%;background:#0F0B08;border:1px solid var(--gold-dim);color:var(--text);padding:12px 14px;border-radius:3px;font-size:16px;margin-bottom:12px;font-family:'IBM Plex Mono',monospace;text-align:center;letter-spacing:.15em;}
-  input[type=text]::placeholder{color:var(--muted);letter-spacing:normal;font-family:'Noto Sans Thai',sans-serif;}
+  input[type=text],input[type=password]{width:100%;background:#0F0B08;border:1px solid var(--gold-dim);color:var(--text);padding:12px 14px;border-radius:3px;font-size:16px;margin-bottom:12px;font-family:'IBM Plex Mono',monospace;text-align:center;letter-spacing:.15em;}
+  input[type=text]::placeholder,input[type=password]::placeholder{color:var(--muted);letter-spacing:normal;font-family:'Noto Sans Thai',sans-serif;}
   .btn{display:block;width:100%;padding:13px;border-radius:3px;border:1px solid var(--gold);background:transparent;color:var(--gold);font-weight:600;font-size:15px;letter-spacing:.03em;transition:.15s;margin-top:8px;}
   .btn:active{transform:scale(.98);}
   .btn.primary{background:var(--gold);color:#1A1208;}
@@ -77,6 +77,19 @@
   #gyModal .list{overflow-y:auto;font-size:12px;display:flex;flex-direction:column;gap:6px;}
   #gyModal .list .row{display:flex;justify-content:space-between;padding:4px 6px;background:#0F0B08;border-radius:3px;}
   #gyModal .empty-msg{color:var(--muted);font-size:12px;text-align:center;padding:12px 0;}
+
+  #cardDetailModal{position:fixed;inset:0;background:rgba(10,7,5,.9);display:none;align-items:center;justify-content:center;z-index:65;padding:24px;}
+  #cardDetailModal.show{display:flex;}
+  #cardDetailModal .detail-box{background:var(--panel);border:1px solid var(--gold);border-radius:6px;padding:18px;max-width:320px;width:100%;text-align:center;}
+  #cardDetailModal .detail-img{width:100%;height:180px;background:#0F0B08;border-radius:4px;margin-bottom:12px;display:flex;align-items:center;justify-content:center;color:var(--muted);overflow:hidden;}
+  #cardDetailModal .detail-img img{width:100%;height:100%;object-fit:cover;}
+  #cardDetailModal h3{margin:0 0 8px;color:var(--gold);font-size:18px;}
+  #cardDetailModal .detail-stats{display:flex;justify-content:center;gap:14px;font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:700;margin-bottom:10px;flex-wrap:wrap;}
+  #cardDetailModal .detail-stats span.pw{color:var(--crimson-bright);}
+  #cardDetailModal .detail-stats span.cost{color:var(--gold);}
+  #cardDetailModal .detail-stats span.gem{color:var(--gem);}
+  #cardDetailModal .detail-text{font-size:13px;color:var(--text);line-height:1.6;margin-bottom:14px;min-height:20px;}
+
 
   .life{display:flex;gap:3px;align-items:center;}
 
@@ -224,6 +237,16 @@
     <h3 id="gyTitle">นรก (สุสาน)</h3>
     <div class="list" id="gyList"></div>
     <button class="btn" onclick="closeGy()">ปิด</button>
+  </div>
+</div>
+
+<div id="cardDetailModal" onclick="if(event.target===this) closeCardDetail()">
+  <div class="detail-box">
+    <div class="detail-img" id="cdImg"></div>
+    <h3 id="cdName"></h3>
+    <div class="detail-stats" id="cdStats"></div>
+    <div class="detail-text" id="cdText"></div>
+    <button class="btn" onclick="closeCardDetail()">ปิด</button>
   </div>
 </div>
 
@@ -376,6 +399,7 @@ function renderField(el, field, mine, myTurn) {
       <div class="pw">${c.power}</div>
     `;
     div.onclick = () => onFieldCardClick(c, mine, myTurn);
+    attachLongPress(div, () => showCardDetail(c));
     el.appendChild(div);
   }
 }
@@ -420,6 +444,7 @@ function renderHand(hand, myTurn, me) {
       <div class="sub">${sub}</div>
     `;
     div.onclick = () => onHandCardClick(c, idx, myTurn, me);
+    attachLongPress(div, () => showCardDetail(c));
     row.appendChild(div);
   });
 }
@@ -521,6 +546,42 @@ function openGy(playerIdx) {
   $('gyModal').classList.add('show');
 }
 function closeGy() { $('gyModal').classList.remove('show'); }
+
+function attachLongPress(el, onLongPress, holdMs = 420) {
+  let timer = null, startX = 0, startY = 0, fired = false;
+  const clear = () => { if (timer) { clearTimeout(timer); timer = null; } };
+  el.addEventListener('pointerdown', (e) => {
+    fired = false; startX = e.clientX; startY = e.clientY;
+    clear();
+    timer = setTimeout(() => { fired = true; if (navigator.vibrate) navigator.vibrate(15); onLongPress(); }, holdMs);
+  });
+  el.addEventListener('pointermove', (e) => {
+    if (timer && (Math.abs(e.clientX - startX) > 10 || Math.abs(e.clientY - startY) > 10)) clear();
+  });
+  ['pointerup', 'pointerleave', 'pointercancel'].forEach(evt => el.addEventListener(evt, clear));
+  el.addEventListener('click', (e) => {
+    if (fired) { e.stopImmediatePropagation(); e.preventDefault(); fired = false; }
+  }, true);
+  el.addEventListener('contextmenu', (e) => e.preventDefault()); // avoid mobile long-press text-select menu
+}
+
+function showCardDetail(c) {
+  $('cdImg').innerHTML = c.image ? `<img src="${c.image}">` : 'ไม่มีภาพ';
+  $('cdName').textContent = c.name;
+  const stats = [];
+  if (c.type === 'avatar' || c.power !== undefined) {
+    if (c.cost !== undefined) stats.push(`<span class="cost">Cost ${c.cost}</span>`);
+    if (c.gem !== undefined) stats.push(`<span class="gem">Gem ${c.gem}</span>`);
+    if (c.power !== undefined) stats.push(`<span class="pw">Power ${c.power}</span>`);
+  } else {
+    stats.push(`<span>${subtypeLabel(c.subtype)}</span>`);
+    if (c.gem !== undefined) stats.push(`<span class="gem">Gem ${c.gem}</span>`);
+  }
+  $('cdStats').innerHTML = stats.join('');
+  $('cdText').textContent = c.text || 'ไม่มีคำอธิบาย';
+  $('cardDetailModal').classList.add('show');
+}
+function closeCardDetail() { $('cardDetailModal').classList.remove('show'); }
 
 function renderMagicZone(el, player) {
   if (!player) { el.innerHTML = `<div class="empty-slot">— — —</div>`; return; }
