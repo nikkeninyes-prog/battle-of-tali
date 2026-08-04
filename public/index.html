@@ -81,14 +81,26 @@
   #cardDetailModal{position:fixed;inset:0;background:rgba(10,7,5,.9);display:none;align-items:center;justify-content:center;z-index:65;padding:24px;}
   #cardDetailModal.show{display:flex;}
   #cardDetailModal .detail-box{background:var(--panel);border:1px solid var(--gold);border-radius:6px;padding:18px;max-width:320px;width:100%;text-align:center;}
-  #cardDetailModal .detail-img{width:100%;height:180px;background:#0F0B08;border-radius:4px;margin-bottom:12px;display:flex;align-items:center;justify-content:center;color:var(--muted);overflow:hidden;}
-  #cardDetailModal .detail-img img{width:100%;height:100%;object-fit:cover;}
+  #cardDetailModal .detail-img{width:100%;aspect-ratio:5/7;max-height:60vh;background:#0F0B08;border-radius:4px;margin-bottom:12px;display:flex;align-items:center;justify-content:center;color:var(--muted);overflow:hidden;}
+  #cardDetailModal .detail-img img{width:100%;height:100%;object-fit:contain;}
   #cardDetailModal h3{margin:0 0 8px;color:var(--gold);font-size:18px;}
   #cardDetailModal .detail-stats{display:flex;justify-content:center;gap:14px;font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:700;margin-bottom:10px;flex-wrap:wrap;}
   #cardDetailModal .detail-stats span.pw{color:var(--crimson-bright);}
   #cardDetailModal .detail-stats span.cost{color:var(--gold);}
   #cardDetailModal .detail-stats span.gem{color:var(--gem);}
   #cardDetailModal .detail-text{font-size:13px;color:var(--text);line-height:1.6;margin-bottom:14px;min-height:20px;}
+
+  #choiceModal{position:fixed;inset:0;background:rgba(10,7,5,.92);display:none;align-items:center;justify-content:center;z-index:70;padding:20px;}
+  #choiceModal.show{display:flex;}
+  #choiceModal .choice-box{background:var(--panel);border:1px solid var(--gold);border-radius:6px;padding:16px;max-width:360px;width:100%;max-height:80vh;display:flex;flex-direction:column;gap:10px;}
+  #choiceModal h3{margin:0;color:var(--gold);font-size:15px;}
+  #choiceModal .choice-sub{font-size:11px;color:var(--muted);margin-top:-6px;}
+  #choiceModal .choice-list{overflow-y:auto;display:flex;flex-direction:column;gap:6px;max-height:50vh;}
+  #choiceModal .choice-item{display:flex;justify-content:space-between;align-items:center;padding:9px 12px;background:#0F0B08;border:1px solid #3A2E1E;border-radius:4px;cursor:pointer;font-size:13px;}
+  #choiceModal .choice-item.selected{border-color:var(--gold);background:#241A12;}
+  #choiceModal .choice-item .pw{color:var(--crimson-bright);font-family:'IBM Plex Mono',monospace;font-weight:700;}
+  #choiceModal .choice-actions{display:flex;gap:8px;margin-top:4px;}
+  #choiceModal .waiting-msg{font-size:13px;color:var(--muted);text-align:center;padding:20px 0;}
 
 
   .life{display:flex;gap:3px;align-items:center;}
@@ -109,6 +121,8 @@
   .avatar-card .nm{font-weight:600;line-height:1.15;font-family:'Noto Serif Thai',serif;font-size:10px;}
   .avatar-card .pw{text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:700;color:var(--crimson-bright);font-size:13px;}
   .avatar-card.attacked{opacity:.4;}
+  .avatar-card{position:relative;}
+  .avatar-card .ability-btn{position:absolute;top:2px;right:2px;width:18px;height:18px;border-radius:50%;border:1px solid var(--gold);background:#241A12;color:var(--gold);font-size:10px;line-height:1;padding:0;display:flex;align-items:center;justify-content:center;}
 
   .hand{display:flex;gap:6px;overflow-x:auto;padding:8px 4px;min-height:130px;align-items:flex-end;}
   .hand-card{flex:0 0 auto;width:78px;height:114px;border-radius:4px;position:relative;background:linear-gradient(160deg,var(--panel-alt),var(--panel));border:1px solid var(--gold-dim);padding:5px;display:flex;flex-direction:column;justify-content:space-between;font-size:10px;transition:.12s;}
@@ -250,6 +264,18 @@
   </div>
 </div>
 
+<div id="choiceModal">
+  <div class="choice-box">
+    <h3 id="choiceTitle">เลือกเป้าหมาย</h3>
+    <div class="choice-sub" id="choiceSub"></div>
+    <div class="choice-list" id="choiceList"></div>
+    <div class="choice-actions">
+      <button class="btn crimson" id="choiceSkipBtn" style="display:none;">ข้าม / ไม่เลือก</button>
+      <button class="btn primary" id="choiceConfirmBtn" disabled>ยืนยัน</button>
+    </div>
+  </div>
+</div>
+
 <script>
 let socket = null;
 let myIdx = -1;
@@ -282,7 +308,7 @@ function startApp(user) {
   };
   $('startBtn').onclick = () => socket.emit('startGame');
   $('endTurnBtn').onclick = () => { selected = null; renderSelection(); socket.emit('endTurn'); };
-  $('cancelBtn').onclick = () => { selected = null; renderSelection(); };
+  $('cancelBtn').onclick = () => { selected = null; discardMode = null; renderSelection(); };
 
   socket.on('connect_error', (err) => {
     if (err.message === 'unauthorized') { $('err').textContent = 'เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่'; setTimeout(logout, 1500); }
@@ -300,6 +326,7 @@ function startApp(user) {
     $('lobby').style.display = 'none';
     $('game').style.display = 'flex';
     render(state);
+    handlePendingChoice(state);
   });
 
   refreshDeckOptions();
@@ -389,15 +416,21 @@ function renderField(el, field, mine, myTurn) {
     if (!c) { const s = document.createElement('div'); s.className = 'slot'; el.appendChild(s); continue; }
     const div = document.createElement('div');
     div.className = 'avatar-card' + (c.attacked ? ' attacked' : '');
+    if (c.destroyEndOfTurn) div.title = 'จะถูกทำลายตอน End Phase (ความกล้าหาญ)';
     const canSelectAttacker = mine && myTurn && !c.attacked && (!selected || selected.kind !== 'attack');
     const isTargetable = selected && ((selected.kind === 'attack' && !mine) || (selected.kind === 'magic-target' && !mine) || (selected.kind === 'magic-target-own' && mine));
     if (canSelectAttacker) div.classList.add('selectable');
     if (isTargetable) div.classList.add('targetable');
+    const canActivateAbility = mine && myTurn && c.ability && c.ability.kind === 'destroy_field_card' && c.ability.trigger && c.ability.trigger.includes('main_phase') && !c.usedMainPhaseAbility;
     div.innerHTML = `
       <div class="img">${c.image ? `<img src="${c.image}" style="width:100%;height:100%;object-fit:cover;border-radius:2px;">` : 'IMG'}</div>
-      <div class="nm">${escapeHtml(c.name)}</div>
+      <div class="nm">${escapeHtml(c.name)}${c.destroyEndOfTurn ? ' 💀' : ''}</div>
       <div class="pw">${c.power}</div>
+      ${canActivateAbility ? '<button class="ability-btn" title="ใช้ความสามารถ">⚡</button>' : ''}
     `;
+    if (canActivateAbility) {
+      div.querySelector('.ability-btn').onclick = (e) => { e.stopPropagation(); socket.emit('activateAbility', { avatarUid: c.uid }); };
+    }
     div.onclick = () => onFieldCardClick(c, mine, myTurn);
     attachLongPress(div, () => showCardDetail(c));
     el.appendChild(div);
@@ -411,11 +444,15 @@ function onFieldCardClick(c, mine, myTurn) {
     selected = null; renderSelection(); return;
   }
   if (selected && selected.kind === 'magic-target' && !mine) {
-    socket.emit('playMagic', { handIndex: selected.handIndex, targetUid: c.uid });
+    socket.emit('playMagic', { handIndex: selected.handIndex, targetUid: c.uid, discardIndex: selected.discardIndex });
     selected = null; renderSelection(); return;
   }
   if (selected && selected.kind === 'magic-target-own' && mine) {
-    socket.emit('playMagic', { handIndex: selected.handIndex, targetUid: c.uid });
+    if (selected.fromPitUid) {
+      socket.emit('playMagicFromPit', { cardUid: selected.fromPitUid, targetUid: c.uid });
+    } else {
+      socket.emit('playMagic', { handIndex: selected.handIndex, targetUid: c.uid });
+    }
     selected = null; renderSelection(); return;
   }
   if (mine && !c.attacked) {
@@ -434,6 +471,10 @@ function renderHand(hand, myTurn, me) {
       if (idx === summonMode.handIndex) cls += ' picked';
       else if (summonMode.picked.has(idx)) cls += ' picked';
     }
+    if (discardMode) {
+      if (idx === discardMode.handIndex) cls += ' picked';
+      else if (discardMode.restrictTribe && !(c.type === 'avatar' && c.tribe === discardMode.restrictTribe)) cls += ' dimmed';
+    }
     div.className = cls;
     const sub = c.type === 'avatar'
       ? `<span class="costgem"><span class="c">Cost ${c.cost}</span></span><span class="costgem"><span class="g">Gem ${c.gem||0}</span></span>`
@@ -451,7 +492,26 @@ function renderHand(hand, myTurn, me) {
 
 function subtypeLabel(s) { return { land: 'เวทย์สนาม', weapon: 'อาวุธ', normal: 'เวทปกติ', counter: 'โต้กลับ' }[s] || s; }
 
+let discardMode = null; // {handIndex, needsTarget, restrictTribe}
+const AUTO_CAST_KINDS = ['field_buff', 'heal_life', 'draw_cards', 'land_tribe_buff', 'destroy_all_opponent', 'mutual_mill', 'recycle_pit_to_deck'];
+const OWN_TARGET_KINDS = ['buff_power', 'buff_self_destroy', 'draw_on_attacked', 'weapon_tribe_restricted_buff'];
+const OPP_TARGET_KINDS = ['damage', 'bounce_to_hand'];
+
 function onHandCardClick(c, idx, myTurn, me) {
+  if (discardMode) {
+    if (idx === discardMode.handIndex) return;
+    const discardIndex = idx;
+    if (discardMode.needsTarget) {
+      selected = { kind: 'magic-target', handIndex: discardMode.handIndex, discardIndex };
+      discardMode = null;
+      renderSelection();
+    } else {
+      socket.emit('playMagic', { handIndex: discardMode.handIndex, targetUid: null, discardIndex });
+      discardMode = null;
+      renderSelection();
+    }
+    return;
+  }
   if (summonMode) {
     if (idx === summonMode.handIndex) return; // can't discard itself
     if (summonMode.picked.has(idx)) summonMode.picked.delete(idx);
@@ -476,11 +536,12 @@ function onHandCardClick(c, idx, myTurn, me) {
   if (c.type === 'magic') {
     if (c.subtype === 'counter') { socket.emit('setCounter', { handIndex: idx }); return; }
     if (me.playedMagic) return;
-    if (c.effect && (c.effect.kind === 'field_buff' || c.effect.kind === 'heal_life')) {
-      socket.emit('playMagic', { handIndex: idx, targetUid: null }); return;
-    }
-    if (c.effect && c.effect.kind === 'buff_power') { selected = { kind: 'magic-target-own', handIndex: idx }; renderSelection(); return; }
-    if (c.effect && c.effect.kind === 'damage') { selected = { kind: 'magic-target', handIndex: idx }; renderSelection(); return; }
+    const kind = c.effect && c.effect.kind;
+    if (AUTO_CAST_KINDS.includes(kind)) { socket.emit('playMagic', { handIndex: idx, targetUid: null }); return; }
+    if (OWN_TARGET_KINDS.includes(kind)) { selected = { kind: 'magic-target-own', handIndex: idx }; renderSelection(); return; }
+    if (OPP_TARGET_KINDS.includes(kind)) { selected = { kind: 'magic-target', handIndex: idx }; renderSelection(); return; }
+    if (kind === 'discard_cost_destroy') { discardMode = { handIndex: idx, needsTarget: true }; renderSelection(); return; }
+    if (kind === 'discard_avatar_cost_mill_draw') { discardMode = { handIndex: idx, needsTarget: false, restrictTribe: c.effect.restrictTribe }; renderSelection(); return; }
   }
 }
 
@@ -501,7 +562,7 @@ function confirmSummon() {
 }
 
 function renderSelection() {
-  $('cancelBtn').style.display = selected ? 'block' : 'none';
+  $('cancelBtn').style.display = (selected || discardMode) ? 'block' : 'none';
   if (lastState) render(lastState);
 }
 
@@ -509,6 +570,7 @@ function updateHint(state, me, myTurn) {
   const h = $('hintText');
   if (state.winner !== null) { h.textContent = ''; return; }
   if (summonMode) { h.textContent = 'แตะการ์ดในมือเพื่อเลือกทิ้งจ่าย Gem แล้วกดยืนยัน'; return; }
+  if (discardMode) { h.textContent = discardMode.restrictTribe ? `แตะการ์ด Avatar เผ่า${discardMode.restrictTribe} ในมือเพื่อทิ้ง` : 'แตะการ์ดในมือ 1 ใบเพื่อทิ้งเป็นค่าใช้จ่าย'; return; }
   if (!myTurn) {
     h.textContent = me.hand.some(c => c.type === 'magic' && c.subtype === 'counter')
       ? 'ไม่ใช่ตาคุณ — แตะการ์ดโต้กลับเพื่อเตรียมใช้ได้'
@@ -536,12 +598,35 @@ $('meHellBtn').onclick = (e) => { e.stopPropagation(); openGy(myIdx); };
 function openGy(playerIdx) {
   if (!lastState) return;
   const p = lastState.players[playerIdx];
+  const myTurn = lastState.turn === myIdx;
+  const canCastFromPit = playerIdx === myIdx && myTurn && !p.playedMagic && !discardMode && !selected;
   $('gyTitle').textContent = `นรก (สุสาน) — ${p.name}`;
   const list = $('gyList');
   if (!p.graveyard.length) {
     list.innerHTML = '<div class="empty-msg">ยังไม่มีการ์ดในนรก</div>';
   } else {
-    list.innerHTML = p.graveyard.map(c => `<div class="row"><span>${escapeHtml(c.name)}</span><span style="color:var(--muted);">${c.type==='avatar'?('Pw '+c.power):subtypeLabel(c.subtype)}</span></div>`).reverse().join('');
+    list.innerHTML = p.graveyard.map(c => `
+      <div class="row" style="align-items:center;">
+        <span>${escapeHtml(c.name)}</span>
+        <span style="display:flex;gap:6px;align-items:center;">
+          <span style="color:var(--muted);">${c.type==='avatar'?('Pw '+c.power):subtypeLabel(c.subtype)}</span>
+          ${c.castableFromPit && canCastFromPit ? `<button class="btn primary" style="width:auto;padding:4px 8px;font-size:11px;margin:0;" data-pit-uid="${c.uid}">ใช้</button>` : ''}
+        </span>
+      </div>
+    `).reverse().join('');
+    list.querySelectorAll('[data-pit-uid]').forEach(btn => {
+      btn.onclick = () => {
+        const cardUid = btn.dataset.pitUid;
+        const card = p.graveyard.find(c => c.uid === cardUid);
+        closeGy();
+        if (card && card.effect && card.effect.kind === 'weapon_tribe_restricted_buff') {
+          selected = { kind: 'magic-target-own', fromPitUid: cardUid };
+          renderSelection();
+        } else {
+          socket.emit('playMagicFromPit', { cardUid, targetUid: null });
+        }
+      };
+    });
   }
   $('gyModal').classList.add('show');
 }
@@ -582,6 +667,125 @@ function showCardDetail(c) {
   $('cardDetailModal').classList.add('show');
 }
 function closeCardDetail() { $('cardDetailModal').classList.remove('show'); }
+
+// ---------- Generic pending-choice modal (server-driven interactive prompts) ----------
+let currentChoiceSelection = new Set();
+
+function handlePendingChoice(state) {
+  const pc = state.pendingChoice;
+  const modal = $('choiceModal');
+  if (!pc) { modal.classList.remove('show'); return; }
+  if (pc.waitingForOpponent) {
+    modal.classList.add('show');
+    $('choiceTitle').textContent = 'รอคู่ต่อสู้ตัดสินใจ...';
+    $('choiceSub').textContent = '';
+    $('choiceList').innerHTML = '<div class="waiting-msg">คู่ต่อสู้กำลังเลือกการ์ด กรุณารอสักครู่</div>';
+    $('choiceSkipBtn').style.display = 'none';
+    $('choiceConfirmBtn').style.display = 'none';
+    return;
+  }
+  $('choiceConfirmBtn').style.display = 'block';
+  currentChoiceSelection = new Set();
+  renderChoiceModal(pc);
+  modal.classList.add('show');
+}
+
+const CHOICE_TITLES = {
+  on_summon_target: 'เลือก Avatar เป้าหมาย',
+  dig_choose: 'เลือกการ์ด 1 ใบเก็บเข้ามือ',
+  destroy_field_card: 'เลือกการ์ดที่จะทำลาย',
+  reanimate_named_from_pit: 'เลือกการ์ดฟื้นจากหลุม',
+  copy_ability_from_pit: 'เลือกการ์ดในหลุมเพื่อก็อปความสามารถ',
+  reanimate_from_pit_offer: 'ฟื้นคืนชีพจากหลุมทันทีไหม?',
+  sacrifice_to_wake: 'สังเวย Avatar เพื่อกลับสภาพตื่นไหม?',
+  redirect_attack_target: 'เลือก Avatar รับการโจมตีแทน',
+  recycle_pit_to_deck: 'เลือกการ์ดจากหลุมกลับเข้าเด็ค (ไม่บังคับ)',
+  discard_for_conditional_destroy: 'ทิ้งการ์ดนี้เพื่อใช้ความสามารถไหม?'
+};
+const SKIPPABLE_TYPES = ['sacrifice_to_wake', 'reanimate_from_pit_offer', 'recycle_pit_to_deck', 'discard_for_conditional_destroy'];
+const MULTI_SELECT_TYPES = ['recycle_pit_to_deck'];
+
+function choiceItems(pc) {
+  switch (pc.pendingType) {
+    case 'on_summon_target':
+    case 'destroy_field_card':
+    case 'redirect_attack_target':
+      return (pc.options || []).map(o => ({ key: o.uid, label: o.name, sub: `Power ${o.power}` }));
+    case 'reanimate_named_from_pit':
+    case 'copy_ability_from_pit':
+    case 'recycle_pit_to_deck':
+      return (pc.options || []).map(o => ({ key: o.uid, label: o.name }));
+    case 'discard_for_conditional_destroy':
+      return (pc.options || []).map(o => ({ key: String(o.handIndex), label: o.name }));
+    case 'dig_choose':
+      return (pc.revealed || []).map(c => ({ key: c.uid, label: c.name, sub: c.type === 'avatar' ? `Cost${c.cost}/Gem${c.gem}/Pw${c.power}` : (subtypeLabel(c.subtype) + ' · Gem' + (c.gem || 0)) }));
+    case 'sacrifice_to_wake': {
+      const me = lastState.players[lastState.you];
+      return me.field.map(f => ({ key: f.uid, label: f.name, sub: `Power ${f.power}` }));
+    }
+    default:
+      return [];
+  }
+}
+
+function renderChoiceModal(pc) {
+  $('choiceTitle').textContent = (pc.sourceName ? pc.sourceName : '') + (CHOICE_TITLES[pc.pendingType] ? ' — ' + CHOICE_TITLES[pc.pendingType] : '');
+  $('choiceSub').textContent = pc.pendingType === 'recycle_pit_to_deck' ? `เลือกได้สูงสุด ${pc.maxSelect || 5} ใบ` : '';
+  const skipBtn = $('choiceSkipBtn');
+  const confirmBtn = $('choiceConfirmBtn');
+  skipBtn.style.display = SKIPPABLE_TYPES.includes(pc.pendingType) ? 'block' : 'none';
+  skipBtn.onclick = () => {
+    const skipVal = pc.pendingType === 'sacrifice_to_wake' ? 'no' : (pc.pendingType === 'discard_for_conditional_destroy' ? 'skip' : []);
+    socket.emit('resolveChoice', { selectedUids: Array.isArray(skipVal) ? skipVal : [skipVal] });
+    $('choiceModal').classList.remove('show');
+  };
+
+  if (pc.pendingType === 'reanimate_from_pit_offer') {
+    $('choiceList').innerHTML = `<div class="choice-item" id="reanimateYesItem">✅ ใช่ ฟื้น ${escapeHtml(pc.sourceName || '')} ขึ้นสนามทันที</div>`;
+    $('reanimateYesItem').onclick = () => {
+      socket.emit('resolveChoice', { selectedUids: ['yes'] });
+      $('choiceModal').classList.remove('show');
+    };
+    confirmBtn.style.display = 'none';
+    return;
+  }
+  confirmBtn.style.display = 'block';
+
+  const items = choiceItems(pc);
+  const multi = MULTI_SELECT_TYPES.includes(pc.pendingType);
+  const maxSelect = pc.maxSelect || 1;
+  const list = $('choiceList');
+  if (!items.length) {
+    list.innerHTML = '<div class="waiting-msg">ไม่มีตัวเลือกที่ใช้ได้</div>';
+    confirmBtn.disabled = true;
+    return;
+  }
+  list.innerHTML = items.map(it => `
+    <div class="choice-item" data-key="${escapeHtml(String(it.key))}">
+      <span>${escapeHtml(it.label)}</span>
+      ${it.sub ? `<span class="pw">${escapeHtml(it.sub)}</span>` : ''}
+    </div>
+  `).join('');
+  confirmBtn.disabled = true;
+  list.querySelectorAll('.choice-item').forEach(el => {
+    el.onclick = () => {
+      const key = el.dataset.key;
+      if (multi) {
+        if (currentChoiceSelection.has(key)) currentChoiceSelection.delete(key);
+        else if (currentChoiceSelection.size < maxSelect) currentChoiceSelection.add(key);
+      } else {
+        currentChoiceSelection = new Set([key]);
+      }
+      list.querySelectorAll('.choice-item').forEach(x => x.classList.toggle('selected', currentChoiceSelection.has(x.dataset.key)));
+      confirmBtn.disabled = currentChoiceSelection.size === 0 && !multi;
+      if (multi) confirmBtn.disabled = false; // multi-select can confirm with 0 chosen (same as skip)
+    };
+  });
+  confirmBtn.onclick = () => {
+    socket.emit('resolveChoice', { selectedUids: [...currentChoiceSelection] });
+    $('choiceModal').classList.remove('show');
+  };
+}
 
 function renderMagicZone(el, player) {
   if (!player) { el.innerHTML = `<div class="empty-slot">— — —</div>`; return; }
